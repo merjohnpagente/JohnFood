@@ -530,6 +530,9 @@ a { color: inherit; }
   cursor: pointer;
   min-height: 44px;
   transition: all .18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .chips button:hover { transform: translateY(-1px); border-color: var(--primary); color: var(--primary); background: #fff; }
 .chips button.on {
@@ -539,6 +542,15 @@ a { color: inherit; }
   box-shadow: 0 8px 18px rgba(255,87,34,.3);
   transform: scale(1.03);
 }
+.chip-n {
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(31,27,24,.08);
+  border-radius: 999px;
+  padding: 2px 9px;
+  line-height: 1.5;
+}
+.chips button.on .chip-n { background: rgba(255,255,255,.25); color: #fff; }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -576,8 +588,104 @@ a { color: inherit; }
 .dish .rate .material-symbols-rounded { font-size: 14px; color: #FFB300; }
 .dish .info { padding: 12px 12px 14px; }
 .dish strong { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dish .time { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
-.dish .price { color: var(--primary); font-weight: 700; font-size: 15px; margin-top: 6px; display: block; }
+.info-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; }
+.dish .time { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.dish .price { color: var(--primary); font-weight: 700; font-size: 15px; display: block; }
+
+/* Menu toolbar: search */
+.menu-toolbar { margin-bottom: 14px; }
+.menu-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 6px 8px 6px 14px;
+  max-width: 460px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.menu-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(255,87,34,.15);
+  background: #fff;
+}
+.menu-search .material-symbols-rounded { color: var(--muted); }
+.menu-search input {
+  border: 0;
+  background: transparent;
+  outline: none;
+  flex: 1;
+  font-family: inherit;
+  font-size: 15px;
+  min-height: 40px;
+  color: var(--ink);
+  min-width: 0;
+}
+.menu-search button {
+  border: 0;
+  background: var(--tint);
+  color: var(--primary);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.menu-search button:hover { background: var(--primary); color: #fff; }
+.menu-note { font-size: 13px; margin: 0 0 18px; }
+
+/* Grouped menu */
+.menu-list.grouped { display: grid; gap: 30px; }
+.menu-group { scroll-margin-top: 90px; }
+.group-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.group-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--tint), #FFD9C7);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.group-title { flex: 1; min-width: 0; }
+.group-title h3 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+.group-title span { font-size: 13px; }
+.view-all {
+  border: 1px solid var(--border);
+  background: var(--canvas);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all .18s ease;
+}
+.view-all .material-symbols-rounded { font-size: 18px; transition: transform .2s ease; }
+.view-all:hover { background: var(--primary); border-color: var(--primary); color: #fff; transform: translateY(-1px); }
+.view-all:hover .material-symbols-rounded { transform: translateX(3px); }
+
+/* Empty search state */
+.empty {
+  text-align: center;
+  padding: 48px 20px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--canvas);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+.empty .material-symbols-rounded { font-size: 44px; color: var(--muted); }
+.empty p { margin: 0; color: var(--muted); font-size: 14px; max-width: 380px; }
 
 /* Reviews */
 .quote blockquote { margin: 12px 0; font-size: 15px; line-height: 1.6; }
