@@ -30,7 +30,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCpgnRP0WI80HxiwM31YonaNk1wcWvXhNI',
-    appId: '1:738831913873:android:cb747aa9bd2b1087bbc030',
+    appId: '1:738831913873:android:54716c856810e32abbc030',
     messagingSenderId: '738831913873',
     projectId: 'johnfood-b281a',
     storageBucket: 'johnfood-b281a.firebasestorage.app',
