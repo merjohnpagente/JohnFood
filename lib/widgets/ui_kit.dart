@@ -661,6 +661,7 @@ class OrDivider extends StatelessWidget {
 }
 
 /// Brand logo box used on splash / login / register.
+/// Gradient orange with soft shadow — same look everywhere.
 class BrandLogo extends StatelessWidget {
   final double size;
   final double iconSize;

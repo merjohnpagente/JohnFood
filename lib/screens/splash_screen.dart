@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../app_info.dart';
 import '../theme/app_theme.dart';
+import '../widgets/ui_kit.dart';
 
 class SplashScreen extends StatefulWidget {
   final VoidCallback onFinished;
@@ -71,15 +72,7 @@ class _SplashScreenState extends State<SplashScreen>
                         opacity: _iconFade,
                         child: ScaleTransition(
                           scale: _iconScale,
-                          child: Container(
-                            width: 96,
-                            height: 96,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                            child: const Icon(Icons.fastfood_rounded, size: 48, color: Colors.white),
-                          ),
+                          child: const BrandLogo(size: 96, iconSize: 48),
                         ),
                       ),
                       const SizedBox(height: 20),
