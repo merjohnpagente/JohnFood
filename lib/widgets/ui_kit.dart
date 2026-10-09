@@ -428,7 +428,6 @@ class ErrorState extends StatelessWidget {
     );
   }
 }
-}
 
 class SkeletonLoader extends StatelessWidget {
   const SkeletonLoader({super.key});
