@@ -11,12 +11,7 @@ class CartProvider extends ChangeNotifier {
   final Map<String, CartItem> _items = {};
   String promoCode = '';
   double discount = 0;
-
-  /// Saved cart decoded from disk, waiting for the menu to load
-  /// so ids can be resolved back into [Food] objects.
-  List<Map<String, dynamic>>? _pending;
-  bool _loadDone = false;
-  bool _hydrated = false;
+  bool _restored = false;
 
   CartProvider() {
     _restore();
@@ -27,6 +22,7 @@ class CartProvider extends ChangeNotifier {
   double get subtotal => calcSubtotal(items);
   double get deliveryFee => items.isEmpty ? 0 : calcDeliveryFee(subtotal);
   double get total => calcTotal(subtotal, deliveryFee, discount);
+  bool get restored => _restored;
 
   void add(Food food, {String option = '', int qty = 1}) {
     final key = '${food.id}::$option';
@@ -77,64 +73,49 @@ class CartProvider extends ChangeNotifier {
     _save();
   }
 
-  /// Rebuild cart items from the loaded menu. Returns true once
-  /// hydration is complete (or there was nothing to restore).
-  /// Safe to call on every build — it runs only once.
-  bool hydrate(List<Food> foods) {
-    if (_hydrated || !_loadDone) return _hydrated;
-    _hydrated = true;
-    final pending = _pending;
-    _pending = null;
-    if (pending != null && pending.isNotEmpty) {
-      final byId = {for (final f in foods) f.id: f};
-      for (final m in pending) {
-        final f = byId[m['id'] as String? ?? ''];
-        if (f == null) continue;
-        final qty = ((m['qty'] as num?)?.toInt() ?? 1).clamp(1, 99);
-        final opt = (m['opt'] as String?) ?? '';
-        _items['${f.id}::$opt'] =
-            CartItem(food: f, qty: qty, selectedOption: opt);
-      }
-      notifyListeners();
-    }
-    return true;
-  }
+  Map<String, dynamic> _foodToMap(Food f) => {
+        'id': f.id,
+        'name': f.name,
+        'description': f.description,
+        'price': f.price,
+        'rating': f.rating,
+        'ratingCount': f.ratingCount,
+        'image': f.image,
+        'category': f.category,
+        'deliveryTime': f.deliveryTime,
+        'available': f.available,
+        'options': f.options,
+      };
 
-  Future<void> _restore() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kCartKey);
-      if (raw != null && raw.isNotEmpty) {
-        final data = jsonDecode(raw) as Map<String, dynamic>;
-        final items = data['items'];
-        if (items is List) {
-          _pending = items
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
-        }
-        promoCode = (data['promo'] as String?) ?? '';
-        discount = ((data['discount'] as num?)?.toDouble() ?? 0)
-            .clamp(0, 1e9)
-            .toDouble();
-      }
-    } catch (_) {
-      // Corrupt or unavailable storage: start with an empty cart.
-      _pending = null;
-    } finally {
-      _loadDone = true;
-      notifyListeners();
-    }
-  }
+  Food _foodFromMap(Map<String, dynamic> m) => Food(
+        id: (m['id'] ?? '') as String,
+        name: (m['name'] ?? '') as String,
+        description: (m['description'] ?? '') as String,
+        price: ((m['price'] ?? 0) as num).toDouble(),
+        rating: ((m['rating'] ?? 0) as num).toDouble(),
+        ratingCount: ((m['ratingCount'] ?? 0) as num).toInt(),
+        image: (m['image'] ?? '') as String,
+        category: (m['category'] ?? '') as String,
+        deliveryTime: (m['deliveryTime'] ?? '25 min') as String,
+        available: (m['available'] ?? true) as bool,
+        options:
+            ((m['options'] ?? []) as List).map((e) => '$e').toList(),
+      );
 
+  /// Persist cart so it survives refresh / restart. Errors are
+  /// swallowed so tests (no plugin) and offline never break.
   void _save() {
     try {
       final data = jsonEncode({
         'items': [
           for (final i in _items.values)
-            {'id': i.food.id, 'qty': i.qty, 'opt': i.selectedOption},
+            {
+              'food': _foodToMap(i.food),
+              'qty': i.qty,
+              'option': i.selectedOption,
+            },
         ],
-        'promo': promoCode,
+        'promoCode': promoCode,
         'discount': discount,
       });
       SharedPreferences.getInstance().then(
@@ -146,5 +127,37 @@ class CartProvider extends ChangeNotifier {
         onError: (_) {},
       );
     } catch (_) {}
+  }
+
+  void _restore() {
+    SharedPreferences.getInstance().then(
+      (prefs) {
+        try {
+          final raw = prefs.getString(_kCartKey);
+          if (raw != null && raw.isNotEmpty) {
+            final data = jsonDecode(raw) as Map<String, dynamic>;
+            final items = (data['items'] as List?) ?? [];
+            for (final e in items) {
+              final m = Map<String, dynamic>.from(e as Map);
+              final food = _foodFromMap(
+                  Map<String, dynamic>.from(m['food'] as Map));
+              final qty = ((m['qty'] ?? 1) as num).toInt().clamp(1, 99);
+              final option = (m['option'] ?? '') as String;
+              _items['${food.id}::$option'] = CartItem(
+                  food: food, qty: qty, selectedOption: option);
+            }
+            promoCode = (data['promoCode'] ?? '') as String;
+            discount =
+                ((data['discount'] ?? 0) as num).toDouble();
+          }
+        } catch (_) {}
+        _restored = true;
+        notifyListeners();
+      },
+      onError: (_) {
+        _restored = true;
+        notifyListeners();
+      },
+    );
   }
 }
