@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="John Foods. Crave it. Tap it. Track it. Food delivery with live tracking.">
+  <meta name="theme-color" content="#FF5722">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
+  <title>John Foods. Crave it. Tap it. Track it.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..700,0..1,-50..200" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="progress" id="progress" aria-hidden="true"></div>
+
+  <header class="nav" id="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#home" aria-label="John Foods home">
+        <span class="brand-icon"><span class="material-symbols-rounded">fastfood</span></span>
+        <span class="brand-name">John Foods</span>
+      </a>
+      <nav class="links" id="navLinks" aria-label="Sections">
+        <a href="#home" class="active">Home</a>
+        <a href="#about">About</a>
+        <a href="#menu">Menu</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-primary btn-sm magnetic" href="https://github.com/merjohnpagente/JohnFood/releases/latest">
+          <span class="material-symbols-rounded">download</span> Download Now
+        </a>
+        <button class="burger" id="burger" aria-label="Open menu" aria-expanded="false">
+          <span class="material-symbols-rounded">menu</span>
+        </button>
+      </div>
+    </div>
+    <div class="drawer" id="drawer">
+      <a href="#home">Home</a>
+      <a href="#about">About</a>
+      <a href="#menu">Menu</a>
+      <a href="#contact">Contact</a>
+      <a class="btn btn-primary" href="https://github.com/merjohnpagente/JohnFood/releases/latest">
+        <span class="material-symbols-rounded">download</span> Download Now
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="home">
+      <div class="hero-bg" aria-hidden="true">
+        <span class="blob b1"></span>
+        <span class="blob b2"></span>
+        <span class="grid-pattern"></span>
+      </div>
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <span class="pill reveal"><span class="dot"></span><span class="material-symbols-rounded">delivery_dining</span> Live order tracking in the app</span>
+          <h1 class="reveal" data-delay="80">Crave it. Tap it.<br><span class="accent underline">Track it.</span></h1>
+          <p class="muted lead reveal" data-delay="160">57 dishes across 8 categories delivered fast with live rider tracking on the map from kitchen to doorstep.</p>
+          <div class="cta-row reveal" data-delay="240">
+            <a class="btn btn-primary magnetic" href="https://github.com/merjohnpagente/JohnFood/releases/latest">
+              <span class="material-symbols-rounded">download</span> Download Now
+            </a>
+            <a class="btn btn-outline magnetic" href="https://merjohnpagente.github.io/JohnFood/">
+              <span class="material-symbols-rounded">public</span> Try the web app
+            </a>
+          </div>
+          <div class="trust reveal" data-delay="320">
+            <div class="avatars" aria-hidden="true"><span>JM</span><span>AK</span><span>RS</span><span>+</span></div>
+            <div class="trust-text"><strong>4.9 rated</strong><span>Loved by busy teams, families and foodies</span></div>
+          </div>
+          <div class="mini-stats reveal" data-delay="400">
+            <div><strong><span data-count="57">57</span></strong><span>dishes</span></div>
+            <div><strong><span data-count="8">8</span></strong><span>categories</span></div>
+            <div><strong><span data-count="25">25</span> min</strong><span>avg delivery</span></div>
+          </div>
+        </div>
+        <div class="hero-phone reveal" data-delay="200">
+          <div class="phone-tilt" id="phoneTilt">
+            <div class="phone">
+              <div class="phone-notch"></div>
+              <div class="phone-screen">
+                <div class="app-bar">
+                  <span class="material-symbols-rounded">fastfood</span>
+                  <strong>John Foods</strong>
+                  <span class="material-symbols-rounded">notifications</span>
+                </div>
+                <div class="app-search"><span class="material-symbols-rounded">search</span> Search food</div>
+                <div class="app-chips"><span class="on">Burgers</span><span>Pizza</span><span>Drinks</span></div>
+                <div class="app-cards">
+                  <div class="app-card"><img src="assets/p8.jpg" alt="Burger Pizza" loading="lazy"><div><strong>Burger Pizza</strong><em>PHP 349.00</em></div></div>
+                  <div class="app-card"><img src="assets/b1.jpg" alt="Classic Beef Burger" loading="lazy"><div><strong>Classic Beef Burger</strong><em>PHP 120.00</em></div></div>
+                </div>
+                <div class="app-track"><span class="pulse"></span><span class="material-symbols-rounded">delivery_dining</span> Rider is on the way. 12 min</div>
+              </div>
+            </div>
+          </div>
+          <div class="float-card f1"><span class="material-symbols-rounded">star</span> 4.9 Burger Pizza</div>
+          <div class="float-card f2"><span class="material-symbols-rounded">timer</span> 25 min avg delivery</div>
+          <div class="float-card f3"><span class="material-symbols-rounded">bolt</span> Hot and fresh</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Burgers</span><i>•</i><span>Pizza</span><i>•</i><span>Chicken</span><i>•</i><span>Rice Meals</span><i>•</i><span>Pasta</span><i>•</i><span>Drinks</span><i>•</i><span>Desserts</span><i>•</i><span>Snacks</span><i>•</i>
+        <span>Burgers</span><i>•</i><span>Pizza</span><i>•</i><span>Chicken</span><i>•</i><span>Rice Meals</span><i>•</i><span>Pasta</span><i>•</i><span>Drinks</span><i>•</i><span>Desserts</span><i>•</i><span>Snacks</span><i>•</i>
+      </div>
+    </div>
+
+    <section class="section" id="about">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="kicker">Why John Foods</span>
+          <h2>One app for everyone at the table</h2>
+          <p class="muted">Customers order in seconds. Riders deliver with live location. Admins run the kitchen. Built with Flutter and Firebase.</p>
+        </div>
+        <div class="cards3">
+          <div class="card reveal hover-lift">
+            <span class="card-icon"><span class="material-symbols-rounded">restaurant</span></span>
+            <h3>Order in seconds</h3>
+            <p class="muted">Search 57 dishes, customize your meal, check out with cash or ewallet, then watch your rider on a live map.</p>
+            <span class="card-link">Explore menu <span class="material-symbols-rounded">arrow_forward</span></span>
+          </div>
+          <div class="card reveal hover-lift" data-delay="120">
+            <span class="card-icon"><span class="material-symbols-rounded">delivery_dining</span></span>
+            <h3>Riders on board</h3>
+            <p class="muted">Dedicated rider app with assigned orders, one tap status updates and live location sharing for every trip.</p>
+            <span class="card-link">How delivery works <span class="material-symbols-rounded">arrow_forward</span></span>
+          </div>
+          <div class="card reveal hover-lift" data-delay="240">
+            <span class="card-icon"><span class="material-symbols-rounded">dashboard</span></span>
+            <h3>Admin control</h3>
+            <p class="muted">Sales dashboard, order management, menu editing, promos and rider assignment. All inside the same app.</p>
+            <span class="card-link">See features <span class="material-symbols-rounded">arrow_forward</span></span>
+          </div>
+        </div>
+
+        <div class="steps">
+          <div class="step reveal">
+            <span class="step-num">01</span>
+            <span class="material-symbols-rounded">search</span>
+            <h4>Pick your craving</h4>
+            <p class="muted">Browse photos, ratings and prices. Filter by category in one tap.</p>
+          </div>
+          <div class="step reveal" data-delay="120">
+            <span class="step-num">02</span>
+            <span class="material-symbols-rounded">payments</span>
+            <h4>Pay your way</h4>
+            <p class="muted">Cash on delivery or ewallet. Checkout takes less than a minute.</p>
+          </div>
+          <div class="step reveal" data-delay="240">
+            <span class="step-num">03</span>
+            <span class="material-symbols-rounded">map</span>
+            <h4>Track to your door</h4>
+            <p class="muted">Follow your rider live from kitchen prep to doorstep drop off.</p>
+          </div>
+        </div>
+
+        <p class="credit reveal">By MerjDev. Crafted with care in the Philippines.</p>
+      </div>
+    </section>
+
+    <section class="section tint" id="menu">
+      <div class="wrap">
+        <div class="sec-head split reveal">
+          <div>
+            <span class="kicker">Full menu</span>
+            <h2>Todays most loved dishes</h2>
+            <p class="muted">Every dish below is live in the app today with the same photo and peso price.</p>
+          </div>
+          <div class="menu-meta"><span class="count-pill" id="dishCount">57 dishes</span></div>
+        </div>
+        <div class="menu-toolbar reveal">
+          <label class="menu-search"><span class="material-symbols-rounded">search</span><input id="menuSearch" type="search" placeholder="Search dishes. Try pizza or halo halo." autocomplete="off"><button id="clearSearch" type="button" aria-label="Clear search" hidden><span class="material-symbols-rounded">close</span></button></label>
+        </div>
+        <div class="chips" id="chips" role="tablist" aria-label="Categories"></div>
+        <p class="menu-note muted" id="menuNote" role="status"></p>
+        <div class="menu-list" id="grid"></div>
+      </div>
+    </section>
+
+    <section class="section" id="reviews">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="kicker">Reviews</span>
+          <h2>People keep coming back hungry</h2>
+          <p class="muted">Real feedback from regulars who order lunch, dinner and midnight snacks.</p>
+        </div>
+        <div class="cards3">
+          <figure class="card quote reveal hover-lift">
+            <span class="material-symbols-rounded quote-icon">format_quote</span>
+            <blockquote>Delivery was fast and the Burger Pizza arrived hot. Tracking the rider is my favorite part.</blockquote>
+            <figcaption><strong>Jessa M.</strong><span class="muted">Regular since 2024</span></figcaption>
+          </figure>
+          <figure class="card quote reveal hover-lift" data-delay="120">
+            <span class="material-symbols-rounded quote-icon">format_quote</span>
+            <blockquote>Ordering for the whole office takes minutes. Prices in the app match the site exactly.</blockquote>
+            <figcaption><strong>Arvin K.</strong><span class="muted">Team lunch hero</span></figcaption>
+          </figure>
+          <figure class="card quote reveal hover-lift" data-delay="240">
+            <span class="material-symbols-rounded quote-icon">format_quote</span>
+            <blockquote>As a rider, assigned orders and status updates are simple. Customers see where I am.</blockquote>
+            <figcaption><strong>Ramon S.</strong><span class="muted">John Foods rider</span></figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section rider">
+      <div class="wrap rider-box reveal">
+        <div>
+          <h2>Ride with John Foods</h2>
+          <p>Earn on your schedule with assigned orders, clear payouts and live navigation built in. Apply in one message.</p>
+          <a class="btn btn-light magnetic" href="#contact"><span class="material-symbols-rounded">delivery_dining</span> Apply as rider</a>
+        </div>
+        <span class="material-symbols-rounded rider-icon" aria-hidden="true">electric_moped</span>
+      </div>
+    </section>
+
+    <section class="section" id="contact">
+      <div class="wrap contact-grid">
+        <div class="reveal">
+          <span class="kicker">Contact</span>
+          <h2>Talk to us</h2>
+          <p class="muted">Questions, catering or rider applications. Reach out and we reply within a day.</p>
+          <ul class="contact-list">
+            <li><span class="material-symbols-rounded">mail</span> <a href="mailto:merjohnpagente7@gmail.com">merjohnpagente7@gmail.com</a></li>
+            <li><span class="material-symbols-rounded">code</span> <a href="https://github.com/merjohnpagente/JohnFood">github.com/merjohnpagente/JohnFood</a></li>
+            <li><span class="material-symbols-rounded">bug_report</span> <a href="https://github.com/merjohnpagente/JohnFood/issues">Report an issue</a></li>
+            <li><span class="material-symbols-rounded">delivery_dining</span> <span>Want to ride. Mention rider in your message.</span></li>
+          </ul>
+        </div>
+        <form class="card form-card reveal" id="contactForm" data-delay="120">
+          <label>Name<input name="name" required autocomplete="name" placeholder="Your name"></label>
+          <label>Email<input name="email" type="email" required autocomplete="email" inputmode="email" placeholder="you@email.com"></label>
+          <label>Message<textarea name="message" rows="4" required placeholder="How can we help?"></textarea></label>
+          <button class="btn btn-primary magnetic" type="submit"><span class="material-symbols-rounded">send</span> Send message</button>
+          <p class="form-note muted" id="formNote" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="wrap reveal">
+        <h2>Hungry. Dinner is one tap away.</h2>
+        <p class="cta-sub">Free Android APK from GitHub Releases. Web app runs in any browser.</p>
+        <div class="cta-row">
+          <a class="btn btn-light magnetic" href="https://github.com/merjohnpagente/JohnFood/releases/latest">
+            <span class="material-symbols-rounded">download</span> Download Now
+          </a>
+          <a class="btn btn-ghost magnetic" href="https://merjohnpagente.github.io/JohnFood/">
+            <span class="material-symbols-rounded">public</span> Try the web app
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <span class="brand-name">John Foods</span>
+      <span class="muted">By MerjDev. <a href="https://github.com/merjohnpagente/JohnFood">GitHub</a></span>
+    </div>
+  </footer>
+
+  <button class="to-top" id="toTop" aria-label="Back to top"><span class="material-symbols-rounded">arrow_upward</span></button>
+
+  <script src="menu.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
