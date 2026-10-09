@@ -37,7 +37,7 @@ class OrderService {
       .collection('orders')
       .doc(orderId)
       .snapshots()
-      .map((d) => d.exists ? Order.fromDoc(d as DocumentSnapshot<Map<String, dynamic>>) : null);
+      .map((d) => d.exists ? Order.fromDoc(d) : null);
 
   /// Places an order + notification entry atomically (no Cloud Functions).
   Future<String> placeOrder({
