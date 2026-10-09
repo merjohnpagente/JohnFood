@@ -854,6 +854,7 @@ footer { padding: 28px 0; background: #fff; border-top: 1px solid var(--border);
 }
 .store-badge:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .store-badge .material-symbols-rounded { font-size: 30px; }
+.store-badge .github-mark { width: 28px; height: 28px; flex-shrink: 0; }
 .store-text { display: grid; line-height: 1.25; }
 .store-text small { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
 .store-text strong { font-size: 16px; font-weight: 600; }
