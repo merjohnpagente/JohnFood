@@ -24,6 +24,11 @@ class CartProvider extends ChangeNotifier {
   double get total => calcTotal(subtotal, deliveryFee, discount);
   bool get restored => _restored;
 
+  /// Compat hook used by HomeScreen: restoration from disk happens
+  /// automatically (full food snapshots), so this just reports
+  /// whether the disk load finished. Safe to call on every build.
+  bool hydrate(List<Food> foods) => _restored;
+
   void add(Food food, {String option = '', int qty = 1}) {
     final key = '${food.id}::$option';
     if (_items.containsKey(key)) {

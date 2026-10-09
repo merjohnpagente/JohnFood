@@ -70,10 +70,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: ContentWidth(
-            maxWidth: 640,
-            child: Padding(
+        child: LayoutBuilder(
+          builder: (_, vp) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: vp.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: Padding(
               padding: EdgeInsets.all(context.pagePadding),
               child: Form(
                 key: _form,

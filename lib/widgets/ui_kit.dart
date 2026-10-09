@@ -744,7 +744,6 @@ class _BrandLogoPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-}
 
 /// Auto-scrolling promo banner carousel (dark card like the design mockup).
 class PromoCarousel extends StatefulWidget {
