@@ -557,6 +557,7 @@ class MenuTile extends StatelessWidget {
   final String title;
   final Color? iconColor;
   final Color? iconBg;
+  final Color? titleColor;
   final VoidCallback? onTap;
   const MenuTile({
     super.key,
@@ -564,6 +565,7 @@ class MenuTile extends StatelessWidget {
     required this.title,
     this.iconColor,
     this.iconBg,
+    this.titleColor,
     this.onTap,
   });
   @override
@@ -582,8 +584,10 @@ class MenuTile extends StatelessWidget {
             size: 20, color: iconColor ?? AppColors.primary),
       ),
       title: Text(title,
-          style: const TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w600)),
+          style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: titleColor ?? AppColors.ink)),
       trailing: const Icon(Icons.chevron_right_rounded,
           color: AppColors.muted),
       onTap: onTap,
