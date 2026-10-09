@@ -31,6 +31,9 @@ jobs:
             flutter create . --project-name john_foods --org com.merjdev.johnfoods
           fi
 
+      - name: Remove template test stub
+        run: rm -f test/widget_test.dart
+
       - name: Set Android app label
         run: |
           sed -i 's/android:label="[^"]*"/android:label="John Foods"/' android/app/src/main/AndroidManifest.xml
