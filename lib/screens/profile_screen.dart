@@ -8,7 +8,10 @@ import '../theme/app_theme.dart';
 import '../theme/motion.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
+import 'addresses_screen.dart';
+import 'help_support_screen.dart';
 import 'orders_screen.dart';
+import 'payment_methods_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -23,12 +26,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<AuthProvider>().refresh();
     });
-  }
-
-  void _soon(String what) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$what coming soon')),
-    );
   }
 
   void _settings() {
@@ -204,13 +201,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     MenuTile(
                       icon: Icons.location_on_outlined,
                       title: 'Addresses',
-                      onTap: () => _soon('Saved addresses'),
+                      onTap: () => Navigator.push(
+                          context,
+                          slideRoute(const AddressesScreen())),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     MenuTile(
                       icon: Icons.credit_card_outlined,
                       title: 'Payment Methods',
-                      onTap: () => _soon('Payment methods'),
+                      onTap: () => Navigator.push(
+                          context,
+                          slideRoute(const PaymentMethodsScreen())),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     MenuTile(
@@ -222,7 +223,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     MenuTile(
                       icon: Icons.help_outline_rounded,
                       title: 'Help & Support',
-                      onTap: () => _soon('Help & Support'),
+                      onTap: () => Navigator.push(
+                          context,
+                          slideRoute(const HelpSupportScreen())),
                     ),
                   ],
                 ),

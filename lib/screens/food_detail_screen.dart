@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/cart_provider.dart';
 import '../providers/menu_provider.dart';
 import '../theme/app_theme.dart';
@@ -176,9 +177,8 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
                 const SizedBox(width: 8),
                 overlayBtn(
                   icon: Icons.share_outlined,
-                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Sharing is coming soon!')),
+                  onTap: () => Share.share(
+                    'Check out ${food.name} on John Foods for ${formatPeso(food.price)}!',
                   ),
                 ),
               ],

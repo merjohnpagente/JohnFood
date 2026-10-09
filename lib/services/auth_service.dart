@@ -103,6 +103,20 @@ class AuthService {
     await _db.collection('users').doc(uid).update({'addresses': addresses});
   }
 
+  Future<void> updateProfile(String uid,
+      {String? name, String? phone}) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name.trim();
+    if (phone != null) data['phone'] = phone.trim();
+    if (data.isNotEmpty) {
+      await _db.collection('users').doc(uid).update(data);
+    }
+  }
+
+  Future<void> updateFavorites(String uid, List<String> favorites) async {
+    await _db.collection('users').doc(uid).update({'favorites': favorites});
+  }
+
   Future<void> signOut() async {
     // Google sign-out must never block Firebase sign-out:
     // it throws on web / email-password sessions.

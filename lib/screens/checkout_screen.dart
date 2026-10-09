@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../services/order_service.dart';
@@ -24,6 +25,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _notes = TextEditingController();
   String _payment = 'Cash on delivery';
   bool _placing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferredPayment();
+  }
+
+  Future<void> _loadPreferredPayment() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('johnfoods_payment_v1');
+      const known = ["Cash on delivery", "GCash", "Maya", "Card"];
+      if (saved != null && known.contains(saved) && mounted) {
+        setState(() => _payment = saved);
+      }
+    } catch (_) {}
+  }
   bool _placed = false;
 
   @override
@@ -126,6 +144,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             DropdownMenuItem(value: 'Cash on delivery', child: Text('Cash on delivery')),
                             DropdownMenuItem(value: 'GCash', child: Text('GCash')),
                             DropdownMenuItem(value: 'E-wallet', child: Text('E-wallet')),
+                            DropdownMenuItem(value: 'Maya', child: Text('Maya')),
+                            DropdownMenuItem(value: 'Card', child: Text('Card')),
                           ],
                           onChanged: (v) => setState(() => _payment = v ?? _payment),
                         ),
