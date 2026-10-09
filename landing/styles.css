@@ -1,19 +1,20 @@
 :root {
-  --primary: #FF5722;
-  --primary-dark: #E64A19;
+  --primary: #F2661F;
+  --primary-dark: #D9530F;
   --primary-soft: #FF8A50;
-  --ink: #1F1B18;
+  --ink: #1E2A38;
   --muted: #8A817B;
-  --canvas: #FAF7F5;
-  --tint: #FFEDE6;
+  --canvas: #FDF8F1;
+  --tint: #FBE7D3;
+  --peach: #FBD9B8;
   --white: #FFFFFF;
-  --border: #EFE8E3;
+  --border: #F0E4D6;
   --radius: 16px;
   --radius-lg: 24px;
   --max: 1120px;
-  --shadow-sm: 0 4px 16px rgba(31, 27, 24, .08);
-  --shadow-md: 0 12px 32px rgba(31, 27, 24, .12);
-  --shadow-lg: 0 24px 60px rgba(31, 27, 24, .22);
+  --shadow-sm: 0 4px 16px rgba(30, 42, 56, .08);
+  --shadow-md: 0 12px 32px rgba(30, 42, 56, .12);
+  --shadow-lg: 0 24px 60px rgba(30, 42, 56, .22);
 }
 
 * { box-sizing: border-box; }
@@ -826,10 +827,112 @@ footer { padding: 28px 0; background: #fff; border-top: 1px solid var(--border);
   .blob, .phone, .float-card, .marquee-track, .app-track::after, .pulse, .rider-icon { animation: none; }
 }
 
+/* Good Food, Good Mood theme additions */
+.btn-pill { border-radius: 999px; }
+.brand-name em { font-style: normal; color: var(--primary); }
+
+.pill-badge {
+  background: var(--tint);
+  border-color: transparent;
+  box-shadow: none;
+}
+.pill-badge .dot { background: var(--primary); }
+
+/* Store badges */
+.store-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+.store-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #111;
+  color: #fff;
+  border-radius: 12px;
+  padding: 8px 16px 8px 12px;
+  text-decoration: none;
+  transition: transform .18s ease, box-shadow .18s ease;
+  box-shadow: var(--shadow-sm);
+}
+.store-badge:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.store-badge .material-symbols-rounded { font-size: 30px; }
+.store-text { display: grid; line-height: 1.25; }
+.store-text small { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+.store-text strong { font-size: 16px; font-weight: 600; }
+
+/* Hero art: blob photo with doodles */
+.hero-art { position: relative; width: min(500px, 100%); aspect-ratio: 1 / 1; justify-self: center; }
+.hero-blob {
+  position: absolute;
+  inset: 4% 0 0 6%;
+  background: linear-gradient(135deg, #FBD9B8, #F6C391);
+  border-radius: 58% 42% 55% 45% / 55% 48% 52% 45%;
+  animation: drift 9s ease-in-out infinite alternate;
+}
+.hero-img {
+  position: absolute;
+  inset: 0 3% 6% 0;
+  width: 97%;
+  height: 94%;
+  object-fit: cover;
+  border-radius: 52% 48% 50% 50% / 48% 52% 48% 52%;
+  box-shadow: var(--shadow-lg);
+}
+.doodle {
+  position: absolute;
+  top: 2%;
+  left: -4%;
+  font-family: 'Caveat', cursive;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  transform: rotate(-8deg);
+}
+.doodle-arrow { position: absolute; top: 12%; left: 6%; width: 52px; height: 52px; color: var(--ink); }
+.spark { position: absolute; width: 26px; height: 7px; border-radius: 99px; background: var(--primary); }
+.spark.s1 { top: 0; right: 22%; transform: rotate(-32deg); }
+.spark.s2 { top: 5%; right: 14%; transform: rotate(-32deg); height: 6px; width: 18px; }
+.spark.s3 { top: 10%; right: 8%; transform: rotate(-32deg); height: 6px; width: 12px; }
+.hero-art .float-card.g1 { top: 6%; right: -2%; }
+.hero-art .float-card.g2 { bottom: 8%; left: -4%; animation-delay: -2s; }
+.hero-art .float-card { animation: bob 4s ease-in-out infinite; }
+
+/* Features strip */
+.features { padding: 8px 0 56px; }
+.features-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.feature { text-align: center; padding: 12px 8px; border-radius: var(--radius-lg); transition: transform .2s ease, background .2s ease; }
+.feature:hover { transform: translateY(-4px); background: #fff; box-shadow: var(--shadow-sm); }
+.feature-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--tint);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+  transition: transform .2s ease;
+}
+.feature:hover .feature-icon { transform: scale(1.08) rotate(-6deg); }
+.feature-icon .material-symbols-rounded { font-size: 34px; }
+.feature h3 { margin: 0 0 6px; font-size: 16px; }
+.feature p { margin: 0; font-size: 13px; }
+
+/* App download section */
+.app-sect { background: linear-gradient(180deg, var(--canvas), #FBEBD9 130%); border-block: 1px solid var(--border); overflow: clip; }
+.app-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; align-items: center; }
+.app-copy h2 { font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 14px; font-weight: 800; }
+.app-copy .cta-row { margin-top: 24px; }
+.app-sect .hero-phone { position: relative; }
+.app-sect .spark.s1 { top: 6%; left: -4%; transform: rotate(28deg); }
+.app-sect .spark.s2 { top: 14%; left: -9%; transform: rotate(28deg); }
+
 /* Responsive */
 @media (max-width: 960px) {
   .hero-grid { grid-template-columns: 1fr; gap: 44px; }
   .hero-phone { order: 2; }
+  .hero-art { order: 2; margin-top: 8px; }
+  .app-grid { grid-template-columns: 1fr; gap: 40px; }
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
   .cards3 { grid-template-columns: 1fr; }
   .steps { grid-template-columns: 1fr; }
   .contact-grid { grid-template-columns: 1fr; }
@@ -866,6 +969,10 @@ footer { padding: 28px 0; background: #fff; border-top: 1px solid var(--border);
   .drawer .btn { justify-content: center; margin-top: 8px; }
   .nav-inner { gap: 12px; }
   .cta-row .btn { flex: 1; justify-content: center; }
+  .store-row .store-badge { flex: 1; justify-content: center; }
+  .doodle { font-size: 24px; left: 0; }
+  .hero-art .float-card.g1 { right: 0; }
+  .hero-art .float-card.g2 { left: 0; }
   .hero { padding: 40px 0 52px; }
   .section { padding: 52px 0; }
   .mini-stats { gap: 24px; }
