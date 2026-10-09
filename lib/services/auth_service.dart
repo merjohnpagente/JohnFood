@@ -99,6 +99,10 @@ class AuthService {
     }
   }
 
+  Future<void> updateAddresses(String uid, List<String> addresses) async {
+    await _db.collection('users').doc(uid).update({'addresses': addresses});
+  }
+
   Future<void> signOut() async {
     // Google sign-out must never block Firebase sign-out:
     // it throws on web / email-password sessions.
