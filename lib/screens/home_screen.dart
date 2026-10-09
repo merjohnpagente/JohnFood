@@ -21,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selected = 0;
+  bool _hydrated = false;
 
   void _openDetail(BuildContext context, String foodId) {
     Navigator.push(
@@ -49,6 +50,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final popular = [...menu.foods]
       ..sort((a, b) => b.rating.compareTo(a.rating));
     final popularPicks = popular.take(6).toList();
+    if (!_hydrated && menu.foods.isNotEmpty) {
+      // Restore the saved cart once the menu is available.
+      // Post-frame so notifyListeners never fires during build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final done =
+            context.read<CartProvider>().hydrate(menu.foods);
+        if (done && mounted) setState(() => _hydrated = true);
+      });
+    }
 
     return Scaffold(
       body: ContentWidth(

@@ -175,20 +175,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('G',
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.primary)),
-                          SizedBox(width: 10),
-                          Text('Continue with Google',
-                              style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w600)),
-                        ],
-                      ),
+                      child: const Text('Continue with Google',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
                     ),
                     const SizedBox(height: 16),
                     Row(
