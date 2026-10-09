@@ -4,6 +4,8 @@ import 'package:john_foods/screens/main_shell.dart';
 
 void main() {
   testWidgets('MainShell shows bottom nav on phone', (t) async {
+    t.view.physicalSize = const Size(400, 800);
+    t.view.devicePixelRatio = 1.0;
     await t.pumpWidget(
       MaterialApp(
         home: MainShell(
@@ -18,6 +20,7 @@ void main() {
       ),
     );
     expect(find.byType(NavigationBar), findsOneWidget);
+    t.view.resetPhysicalSize();
   });
 
   testWidgets('MainShell shows rail on wide', (t) async {
