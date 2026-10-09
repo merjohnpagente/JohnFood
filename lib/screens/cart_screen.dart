@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../services/promo_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
@@ -134,10 +135,10 @@ class _CartScreenState extends State<CartScreen> {
                                   color: AppColors.primary,
                                 ),
                               ),
-                              if (item.option.isNotEmpty) ...[
+                              if (item.selectedOption.isNotEmpty) ...[
                                 const SizedBox(height: 2),
                                 Text(
-                                  item.option,
+                                  item.selectedOption,
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.muted,

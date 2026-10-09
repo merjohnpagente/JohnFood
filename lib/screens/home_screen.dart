@@ -82,11 +82,24 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
             if (menu.loading)
-              const SliverFillRemaining(
-                child: SkeletonLoader(),
+              SliverPadding(
+                padding: EdgeInsets.all(pad),
+                sliver: SliverGrid(
+                  gridDelegate: foodGridDelegate,
+                  delegate: SliverChildBuilderDelegate(
+                    (_, __) => Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    childCount: 6,
+                  ),
+                ),
               )
             else if (filtered.isEmpty)
               SliverFillRemaining(
+                hasScrollBody: false,
                 child: EmptyState(
                   icon: Icons.fastfood_rounded,
                   message: 'No food found.',

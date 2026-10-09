@@ -119,6 +119,7 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
     );
 
     return Scaffold(
+      appBar: AppBar(title: Text(food.name)),
       body: ContentWidth(
         child: wide
             ? Row(
