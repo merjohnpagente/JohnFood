@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 import 'dashboard_screen.dart';
 import 'foods_screen.dart';
 import 'orders_screen.dart';
@@ -13,6 +14,7 @@ class AdminShell extends StatefulWidget {
 
 class _AdminShellState extends State<AdminShell> {
   int _i = 0;
+  static const _titles = ['Dashboard', 'Orders', 'Foods', 'Categories', 'Users'];
   static const _pages = [
     DashboardScreen(),
     AdminOrdersScreen(),
@@ -26,8 +28,39 @@ class _AdminShellState extends State<AdminShell> {
     return LayoutBuilder(
       builder: (context, c) {
         final wide = c.maxWidth >= 720;
+        Future<void> logout() async {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Logout?'),
+              content: const Text('Are you sure you want to logout?'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Logout')),
+              ],
+            ),
+          );
+          if (ok == true) {
+            await AuthService().signOut();
+          }
+        }
+
         if (!wide) {
           return Scaffold(
+            appBar: AppBar(
+              title: Text(_titles[_i]),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout_rounded),
+                  tooltip: 'Logout',
+                  onPressed: logout,
+                ),
+              ],
+            ),
             body: IndexedStack(index: _i, children: _pages),
             bottomNavigationBar: NavigationBar(
               selectedIndex: _i,
@@ -43,6 +76,16 @@ class _AdminShellState extends State<AdminShell> {
           );
         }
         return Scaffold(
+          appBar: AppBar(
+            title: Text(_titles[_i]),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout_rounded),
+                tooltip: 'Logout',
+                onPressed: logout,
+              ),
+            ],
+          ),
           body: Row(
             children: [
               NavigationRail(

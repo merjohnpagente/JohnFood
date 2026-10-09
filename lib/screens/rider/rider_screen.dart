@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/auth_service.dart';
 import '../../services/order_service.dart';
 import '../../utils/formatters.dart';
 import '../../utils/responsive.dart';
@@ -69,7 +70,36 @@ class _RiderScreenState extends State<RiderScreen> {
   Widget build(BuildContext context) {
     final uid = context.watch<AuthProvider>().user?.uid ?? '';
     return Scaffold(
-      appBar: AppBar(title: const Text('Assigned orders')),
+      appBar: AppBar(
+        title: const Text('Assigned orders'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Logout?'),
+                  content:
+                      const Text('Are you sure you want to logout?'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Logout')),
+                  ],
+                ),
+              );
+              if (ok == true) {
+                await AuthService().signOut();
+              }
+            },
+          ),
+        ],
+      ),
       body: ContentWidth(
         maxWidth: 640,
         child: StreamBuilder(
