@@ -8,7 +8,6 @@ import '../theme/app_theme.dart';
 import '../theme/motion.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
-import 'notifications_screen.dart';
 import 'orders_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
