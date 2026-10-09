@@ -82,7 +82,7 @@
         </div>
         <div class="hero-art reveal" data-delay="200">
           <div class="hero-blob" aria-hidden="true"></div>
-          <img class="hero-img" src="assets/hero.jpg" onerror="this.onerror=null;this.src='assets/b1.jpg'" alt="Cheeseburger with fries and drink" fetchpriority="high">
+          <img class="hero-img" src="assets/hero-nobg.png" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='assets/hero.jpg'}else{this.onerror=null;this.src='assets/b1.jpg'}" alt="Cheeseburger with fries and drink" fetchpriority="high">
           <span class="doodle" aria-hidden="true">Fresh<br>&amp; Tasty</span>
           <svg class="doodle-arrow" viewBox="0 0 60 60" fill="none" aria-hidden="true">
             <path d="M46 8 C 32 20, 24 32, 22 48" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
