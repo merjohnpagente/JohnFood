@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/error_mapper.dart';
 import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
@@ -57,7 +58,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_error != null) Text(_error!),
+                  if (_error != null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                          color: AppColors.errorBg,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded,
+                              color: AppColors.error, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(_error!)),
+                        ],
+                      ),
+                    ),
                   AppTextField(controller: _name, label: 'Name', validator: (v) => validateRequired(v, 'your name')),
                   const SizedBox(height: 12),
                   AppTextField(controller: _email, label: 'Email', validator: validateEmail, keyboardType: TextInputType.emailAddress),

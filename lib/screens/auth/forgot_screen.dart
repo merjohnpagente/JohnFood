@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/error_mapper.dart';
 import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
@@ -52,7 +53,22 @@ class _ForgotScreenState extends State<ForgotScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_msg != null) Text(_msg!),
+                if (_msg != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                        color: AppColors.tint,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded,
+                            color: AppColors.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_msg!)),
+                      ],
+                    ),
+                  ),
                 AppTextField(controller: _email, label: 'Email', validator: validateEmail, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.done),
                 const SizedBox(height: 16),
                 PrimaryButton(label: 'Send reset link', loading: _loading, onPressed: _send),

@@ -100,7 +100,13 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    await GoogleSignIn().signOut();
+    // Google sign-out must never block Firebase sign-out:
+    // it throws on web / email-password sessions.
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {
+      // Not a Google session — safe to ignore.
+    }
     await _auth.signOut();
   }
 }

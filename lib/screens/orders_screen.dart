@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/providers.dart';
 import '../services/order_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
@@ -71,24 +72,63 @@ class _OrdersScreenState extends State<OrdersScreen>
       itemCount: list.length,
       itemBuilder: (_, i) {
         final o = list[i] as dynamic;
+        final status = o.status as String;
+        final id = o.id as String;
         return Card(
-          child: ListTile(
-            title: Text('Order ${o.id.substring(0, 6)}'),
-            subtitle: Text('${formatPeso(o.total)}  •  ${o.status}'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                StatusChip(o.status as String),
-                if (!isHistory && (o.status as String) == 'pending')
-                  TextButton(
-                    onPressed: () => OrderService().cancelOrder(o.id as String),
-                    child: const Text('Cancel'),
-                  ),
-              ],
-            ),
+          margin: const EdgeInsets.only(bottom: 12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.card),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => TrackingScreen(orderId: o.id as String)),
+              MaterialPageRoute(builder: (_) => TrackingScreen(orderId: id)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Order #${id.length > 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase()}',
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      StatusChip(status),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        '${(o.items as List).length} item(s)',
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.muted),
+                      ),
+                      const Spacer(),
+                      Text(
+                        formatPeso((o.total as num).toDouble()),
+                        style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                  if (!isHistory && status == 'pending') ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => OrderService().cancelOrder(id),
+                        child: const Text('Cancel order'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         );

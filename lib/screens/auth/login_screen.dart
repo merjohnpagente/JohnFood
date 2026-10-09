@@ -80,15 +80,41 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 32),
-                    const Icon(Icons.fastfood_rounded, size: 56, color: AppColors.primary),
-                    const SizedBox(height: 12),
+                    Center(
+                      child: Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryDark],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(0.35),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.fastfood_rounded,
+                            size: 44, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     const Text(kAppName,
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
+                        style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5)),
                     const SizedBox(height: 4),
                     const Text('Sign in to order your favorites',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.muted)),
+                        style: TextStyle(
+                            fontSize: 15, color: AppColors.muted)),
                     const SizedBox(height: 24),
                     if (_error != null)
                       Container(
@@ -97,7 +123,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: BoxDecoration(
                             color: AppColors.errorBg,
                             borderRadius: BorderRadius.circular(12)),
-                        child: Text(_error!),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                color: AppColors.error, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(_error!)),
+                          ],
+                        ),
                       ),
                     AppTextField(controller: _email, label: 'Email', validator: validateEmail, keyboardType: TextInputType.emailAddress),
                     const SizedBox(height: 12),
