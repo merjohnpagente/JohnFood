@@ -81,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 8),
-                    const Entrance(child: BrandLogo(size: 72, iconSize: 38)),
+                    const Center(child: Entrance(child: BrandLogo(size: 72, iconSize: 38))),
                     const SizedBox(height: 16),
                     const Entrance(
                       delay: Duration(milliseconds: 60),
@@ -177,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: const Text('Continue with Google',
                           style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
+                              fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.ink)),
                     ),
                     const SizedBox(height: 16),
                     Row(

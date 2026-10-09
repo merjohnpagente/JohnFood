@@ -68,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         tooltip: 'Back',
                       ),
                     ),
-                    const Entrance(child: BrandLogo(size: 72, iconSize: 38)),
+                    const Center(child: Entrance(child: BrandLogo(size: 72, iconSize: 38))),
                     const SizedBox(height: 16),
                     const Entrance(
                       delay: Duration(milliseconds: 60),
