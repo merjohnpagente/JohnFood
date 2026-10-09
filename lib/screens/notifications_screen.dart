@@ -60,16 +60,24 @@ class NotificationsScreen extends StatelessWidget {
                     ),
                     subtitle: Text(n.body,
                         maxLines: 2, overflow: TextOverflow.ellipsis),
-                    trailing: n.read
-                        ? null
-                        : Container(
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!n.read)
+                          Container(
                             width: 10,
                             height: 10,
+                            margin:
+                                const EdgeInsets.only(right: 8),
                             decoration: const BoxDecoration(
                               color: AppColors.primary,
                               shape: BoxShape.circle,
                             ),
                           ),
+                        const Icon(Icons.chevron_right_rounded,
+                            color: AppColors.muted),
+                      ],
+                    ),
                     onTap: () =>
                         NotificationService().markRead(uid, n.id),
                   ),

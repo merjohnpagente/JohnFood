@@ -87,9 +87,19 @@ class _SplashScreenState extends State<SplashScreen>
                         opacity: _nameFade,
                         child: SlideTransition(
                           position: _nameSlide,
-                          child: const Text(
-                            kAppName,
-                            style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: AppColors.ink),
+                          child: const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                kAppName,
+                                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: AppColors.ink),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Good Food, Good Mood',
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.muted),
+                              ),
+                            ],
                           ),
                         ),
                       ),

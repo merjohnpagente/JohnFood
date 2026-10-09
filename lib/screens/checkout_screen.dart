@@ -138,7 +138,57 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const Text(
+                          'Order Summary',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        for (final item in cart.items)
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius:
+                                      BorderRadius.circular(10),
+                                  child: SizedBox(
+                                    width: 44,
+                                    height: 44,
+                                    child: FoodImage(
+                                        item.food.image),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    item.food.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                                Text('x${item.qty}',
+                                    style: const TextStyle(
+                                        color: AppColors.muted,
+                                        fontSize: 13)),
+                                const SizedBox(width: 10),
+                                Text(
+                                  formatPeso(
+                                      item.food.price * item.qty),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const Divider(height: 20),
                         _row('Subtotal', formatPeso(cart.subtotal)),
                         const SizedBox(height: 8),
                         _row('Delivery', formatPeso(cart.deliveryFee)),

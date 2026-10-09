@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../theme/motion.dart';
 
 class SearchField extends StatelessWidget {
   final ValueChanged<String> onChanged;
@@ -496,6 +497,8 @@ class AppTextField extends StatelessWidget {
   final TextInputAction textInputAction;
   final bool obscure;
   final Widget? suffix;
+  final Widget? prefix;
+  final String? hint;
   final int maxLines;
   const AppTextField({
     super.key,
@@ -506,6 +509,8 @@ class AppTextField extends StatelessWidget {
     this.textInputAction = TextInputAction.next,
     this.obscure = false,
     this.suffix,
+    this.prefix,
+    this.hint,
     this.maxLines = 1,
   });
   @override
@@ -518,7 +523,12 @@ class AppTextField extends StatelessWidget {
       obscureText: obscure,
       maxLines: maxLines,
       autovalidateMode: AutovalidateMode.onUserInteraction,
-      decoration: InputDecoration(labelText: label, suffixIcon: suffix),
+      decoration: InputDecoration(
+        labelText: hint == null ? label : null,
+        hintText: hint ?? label,
+        prefixIcon: prefix,
+        suffixIcon: suffix,
+      ),
     );
   }
 }
@@ -541,3 +551,449 @@ class OfflineBanner extends StatelessWidget {
     );
   }
 }
+/// Profile / settings menu row with icon bubble and chevron.
+class MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Color? iconColor;
+  final Color? iconBg;
+  final VoidCallback? onTap;
+  const MenuTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.iconColor,
+    this.iconBg,
+    this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: iconBg ?? AppColors.tint,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon,
+            size: 20, color: iconColor ?? AppColors.primary),
+      ),
+      title: Text(title,
+          style: const TextStyle(
+              fontSize: 15, fontWeight: FontWeight.w600)),
+      trailing: const Icon(Icons.chevron_right_rounded,
+          color: AppColors.muted),
+      onTap: onTap,
+    );
+  }
+}
+
+/// Shimmer skeleton block for loading states.
+class ShimmerBox extends StatefulWidget {
+  final double? width;
+  final double? height;
+  final double radius;
+  const ShimmerBox({super.key, this.width, this.height, this.radius = 12});
+  @override
+  State<ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  late final Animation<double> _a;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat(reverse: true);
+    _a = Tween<double>(begin: 0.4, end: 1.0)
+        .animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _a,
+      child: Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: AppColors.shimmer,
+          borderRadius: BorderRadius.circular(widget.radius),
+        ),
+      ),
+    );
+  }
+}
+
+/// "or" divider used on auth screens.
+class OrDivider extends StatelessWidget {
+  const OrDivider({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(child: Divider()),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: Text('or', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+        ),
+        Expanded(child: Divider()),
+      ],
+    );
+  }
+}
+
+/// Brand logo box used on splash / login / register.
+class BrandLogo extends StatelessWidget {
+  final double size;
+  final double iconSize;
+  const BrandLogo({super.key, this.size = 72, this.iconSize = 38});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(size * 0.28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Icon(Icons.fastfood_rounded, size: iconSize, color: Colors.white),
+    );
+  }
+}
+
+/// Auto-scrolling promo banner carousel (dark card like the design mockup).
+class PromoCarousel extends StatefulWidget {
+  final List<PromoSlide> slides;
+  final ValueChanged<int> onOrder;
+  const PromoCarousel({super.key, required this.slides, required this.onOrder});
+  @override
+  State<PromoCarousel> createState() => _PromoCarouselState();
+}
+
+class PromoSlide {
+  final String title;
+  final String subtitle;
+  final String image;
+  const PromoSlide({required this.title, required this.subtitle, required this.image});
+}
+
+class _PromoCarouselState extends State<PromoCarousel> {
+  final _page = PageController(viewportFraction: 0.94);
+  int _i = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.slides.length > 1) _auto();
+  }
+
+  Future<void> _auto() async {
+    while (mounted) {
+      await Future.delayed(const Duration(seconds: 4));
+      if (!mounted || widget.slides.length < 2) return;
+      final next = (_i + 1) % widget.slides.length;
+      if (_page.hasClients) {
+        await _page.animateToPage(next,
+            duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
+      } else {
+        return;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _page.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 150,
+          child: PageView.builder(
+            controller: _page,
+            onPageChanged: (i) => setState(() => _i = i),
+            itemCount: widget.slides.length,
+            itemBuilder: (_, i) {
+              final s = widget.slides[i];
+              return AnimatedScale(
+                scale: i == _i ? 1.0 : 0.96,
+                duration: const Duration(milliseconds: 300),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A1B14),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Positioned(
+                        right: -20,
+                        top: -10,
+                        bottom: -10,
+                        width: 190,
+                        child: FoodImage(s.image),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF2A1B14),
+                              const Color(0xFF2A1B14).withOpacity(0.55),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(s.title,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.2)),
+                            const SizedBox(height: 4),
+                            Text(s.subtitle,
+                                style: TextStyle(
+                                    color: Colors.white.withOpacity(0.7), fontSize: 11)),
+                            const SizedBox(height: 10),
+                            Material(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(20),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () => widget.onOrder(i),
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('Order Now',
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700)),
+                                      SizedBox(width: 4),
+                                      Icon(Icons.arrow_forward_rounded,
+                                          color: Colors.white, size: 14),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < widget.slides.length; i++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: i == _i ? 20 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: i == _i ? AppColors.primary : AppColors.border,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Food list row (All Foods screen) with image, price, rating and add button.
+class FoodRow extends StatelessWidget {
+  final String name;
+  final String price;
+  final double rating;
+  final String deliveryTime;
+  final Widget image;
+  final VoidCallback onTap;
+  final VoidCallback onAdd;
+  const FoodRow({
+    super.key,
+    required this.name,
+    required this.price,
+    required this.rating,
+    required this.deliveryTime,
+    required this.image,
+    required this.onTap,
+    required this.onAdd,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      elevation: 1,
+      shadowColor: Colors.black.withOpacity(0.06),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(width: 76, height: 76, child: image),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(price,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.star_rounded,
+                            size: 14, color: Color(0xFFFFB300)),
+                        Text(' ${rating.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.schedule_rounded,
+                            size: 13, color: AppColors.muted),
+                        Text(' $deliveryTime',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.muted)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Material(
+                color: AppColors.primary,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onAdd,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.add_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Round orange "+" add button with press bounce.
+class AddButton extends StatefulWidget {
+  final VoidCallback onAdd;
+  final double size;
+  const AddButton({super.key, required this.onAdd, this.size = 40});
+  @override
+  State<AddButton> createState() => _AddButtonState();
+}
+
+class _AddButtonState extends State<AddButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: AppMotion.fast);
+    _scale = Tween<double>(begin: 1, end: 0.8).animate(
+        CurvedAnimation(parent: _c, curve: AppMotion.ease));
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: Material(
+        color: AppColors.primary,
+        shape: const CircleBorder(),
+        elevation: 2,
+        shadowColor: AppColors.primary.withOpacity(0.4),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () async {
+            await _c.forward();
+            await _c.reverse();
+            widget.onAdd();
+          },
+          child: SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: Icon(Icons.add_rounded,
+                color: Colors.white, size: widget.size * 0.55),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

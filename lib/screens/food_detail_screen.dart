@@ -118,55 +118,143 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
       ],
     );
 
+    Widget heroImage({double? height}) => Hero(
+          tag: 'food-${food.name}',
+          child: FoodImage(food.image),
+        );
+
+    Widget overlayBtn({required IconData icon, required VoidCallback onTap}) =>
+        Material(
+          color: Colors.white.withOpacity(0.92),
+          shape: const CircleBorder(),
+          elevation: 2,
+          shadowColor: Colors.black.withOpacity(0.15),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(9),
+              child: Icon(icon, size: 20, color: AppColors.ink),
+            ),
+          ),
+        );
+
+    final imageHeader = Stack(
+      children: [
+        ClipRRect(
+          borderRadius: wide
+              ? const BorderRadius.only(
+                  topRight: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                )
+              : const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+          child: wide
+              ? AspectRatio(aspectRatio: 1, child: heroImage())
+              : AspectRatio(aspectRatio: 16 / 10, child: heroImage()),
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          right: 12,
+          child: SafeArea(
+            bottom: false,
+            child: Row(
+              children: [
+                overlayBtn(
+                    icon: Icons.arrow_back_rounded,
+                    onTap: () => Navigator.maybePop(context)),
+                const Spacer(),
+                overlayBtn(
+                  icon: _fav
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_outline_rounded,
+                  onTap: () => setState(() => _fav = !_fav),
+                ),
+                const SizedBox(width: 8),
+                overlayBtn(
+                  icon: Icons.share_outlined,
+                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Sharing is coming soon!')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
     return Scaffold(
-      appBar: AppBar(title: Text(food.name)),
+      extendBodyBehindAppBar: true,
       body: ContentWidth(
         child: wide
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Expanded(child: imageHeader),
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(20),
-                        bottomRight: Radius.circular(20),
-                      ),
-                      child: Hero(tag: 'food-${food.name}', child: FoodImage(food.image)),
-                    ),
-                  ),
-                  Expanded(child: Padding(padding: const EdgeInsets.all(24), child: info)),
+                      child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: info)),
                 ],
               )
             : CustomScrollView(
                 slivers: [
+                  SliverToBoxAdapter(child: imageHeader),
                   SliverToBoxAdapter(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(24),
-                        bottomRight: Radius.circular(24),
-                      ),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 10,
-                        child: Hero(tag: 'food-${food.name}', child: FoodImage(food.image)),
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(padding: const EdgeInsets.all(20), child: info),
+                    child: Padding(
+                        padding: const EdgeInsets.all(20), child: info),
                   ),
                 ],
               ),
       ),
-      bottomNavigationBar: BottomActionBar(
-        label: 'Add to cart',
-        total: formatPeso(food.price * _qty),
-        onPressed: () {
-          context.read<CartProvider>().add(food, option: _option, qty: _qty);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${food.name} added to cart')),
-          );
-          Navigator.pop(context);
-        },
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0xFFEFE8E3))),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: SafeArea(
+          top: false,
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Row(
+                children: [
+                  QuantityStepper(
+                      qty: _qty,
+                      onChanged: (q) =>
+                          setState(() => _qty = q.clamp(1, 20))),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        context
+                            .read<CartProvider>()
+                            .add(food, option: _option, qty: _qty);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content:
+                                  Text('${food.name} added to cart')),
+                        );
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.shopping_cart_outlined,
+                          size: 20),
+                      label: Text(
+                          'Add to Cart • ${formatPeso(food.price * _qty)}'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

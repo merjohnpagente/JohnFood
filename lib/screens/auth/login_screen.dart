@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_info.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/motion.dart';
 import '../../utils/error_mapper.dart';
 import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
@@ -79,42 +80,26 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 32),
-                    Center(
-                      child: Container(
-                        width: 88,
-                        height: 88,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [AppColors.primary, AppColors.primaryDark],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.35),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.fastfood_rounded,
-                            size: 44, color: Colors.white),
-                      ),
-                    ),
+                    const SizedBox(height: 8),
+                    const Entrance(child: BrandLogo(size: 72, iconSize: 38)),
                     const SizedBox(height: 16),
-                    const Text(kAppName,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5)),
+                    const Entrance(
+                      delay: Duration(milliseconds: 60),
+                      child: Text(kAppName,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5)),
+                    ),
                     const SizedBox(height: 4),
-                    const Text('Sign in to order your favorites',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 15, color: AppColors.muted)),
+                    const Entrance(
+                      delay: Duration(milliseconds: 120),
+                      child: Text('Sign in to order your favorites',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 14, color: AppColors.muted)),
+                    ),
                     const SizedBox(height: 24),
                     if (_error != null)
                       Container(
@@ -132,36 +117,101 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
-                    AppTextField(controller: _email, label: 'Email', validator: validateEmail, keyboardType: TextInputType.emailAddress),
+                    Entrance(
+                      delay: const Duration(milliseconds: 160),
+                      child: AppTextField(
+                        controller: _email,
+                        label: 'Email address',
+                        hint: 'Email address',
+                        prefix: const Icon(Icons.mail_outline_rounded,
+                            color: AppColors.muted, size: 20),
+                        validator: validateEmail,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                    ),
                     const SizedBox(height: 12),
-                    AppTextField(
-                      controller: _pw,
-                      label: 'Password',
-                      validator: (v) => validatePassword(v, allowShort: true),
-                      obscure: _obscure,
-                      textInputAction: TextInputAction.done,
-                      suffix: IconButton(
-                        icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                        onPressed: () => setState(() => _obscure = !_obscure),
+                    Entrance(
+                      delay: const Duration(milliseconds: 200),
+                      child: AppTextField(
+                        controller: _pw,
+                        label: 'Password',
+                        hint: 'Password',
+                        prefix: const Icon(Icons.lock_outline_rounded,
+                            color: AppColors.muted, size: 20),
+                        validator: (v) => validatePassword(v, allowShort: true),
+                        obscure: _obscure,
+                        textInputAction: TextInputAction.done,
+                        suffix: IconButton(
+                          icon: Icon(_obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
+                        ),
                       ),
                     ),
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () => Navigator.push(
-                            context, MaterialPageRoute(builder: (_) => const ForgotScreen())),
-                        child: const Text('Forgot password'),
+                            context, slideRoute(const ForgotScreen())),
+                        child: const Text('Forgot password?',
+                            style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600)),
                       ),
                     ),
-                    PrimaryButton(label: 'Login', loading: _loading, onPressed: _login),
-                    const SizedBox(height: 12),
-                    SecondaryButton(label: 'Continue with Google', onPressed: _loading ? null : _google),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () => Navigator.push(
-                          context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                      child: const Text('No account yet? Register'),
+                    const SizedBox(height: 4),
+                    PrimaryButton(
+                        label: 'Log In', loading: _loading, onPressed: _login),
+                    const SizedBox(height: 16),
+                    const OrDivider(),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: _loading ? null : _google,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(48, 52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('G',
+                              style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary)),
+                          SizedBox(width: 10),
+                          Text('Continue with Google',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
                     ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("Don't have an account? ",
+                            style: TextStyle(color: AppColors.muted)),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap),
+                          onPressed: () => Navigator.push(
+                              context, slideRoute(const RegisterScreen())),
+                          child: const Text('Sign up',
+                              style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),

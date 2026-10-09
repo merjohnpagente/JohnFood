@@ -4,9 +4,11 @@ import '../providers/auth_provider.dart';
 import '../providers/providers.dart';
 import '../services/order_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/motion.dart';
 import '../utils/formatters.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
+import 'all_foods_screen.dart';
 import 'tracking_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
@@ -45,10 +47,19 @@ class _OrdersScreenState extends State<OrdersScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Orders'),
-        bottom: TabBar(controller: _tab, tabs: const [
-          Tab(text: 'Active'),
-          Tab(text: 'History'),
-        ]),
+        bottom: TabBar(
+          controller: _tab,
+          indicatorColor: AppColors.primary,
+          indicatorWeight: 3,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelColor: AppColors.primary,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+          unselectedLabelColor: AppColors.muted,
+          tabs: const [
+            Tab(text: 'Active'),
+            Tab(text: 'History'),
+          ],
+        ),
       ),
       body: ContentWidth(
         maxWidth: 640,
@@ -65,7 +76,15 @@ class _OrdersScreenState extends State<OrdersScreen>
 
   Widget _list(List list, {required String empty, bool isHistory = false}) {
     if (list.isEmpty) {
-      return EmptyState(icon: Icons.receipt_long_outlined, message: empty);
+      return EmptyState(
+        icon: Icons.receipt_long_outlined,
+        message: empty,
+        actionLabel: 'Browse Menu',
+        onAction: () => Navigator.push(
+          context,
+          slideRoute(const AllFoodsScreen()),
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -80,7 +99,7 @@ class _OrdersScreenState extends State<OrdersScreen>
             borderRadius: BorderRadius.circular(AppRadius.card),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => TrackingScreen(orderId: id)),
+              slideRoute(TrackingScreen(orderId: id)),
             ),
             child: Padding(
               padding: const EdgeInsets.all(14),

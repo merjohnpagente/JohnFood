@@ -71,6 +71,36 @@ class _CartScreenState extends State<CartScreen> {
         child: ListView(
           padding: EdgeInsets.all(context.pagePadding),
           children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3E0),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.delivery_dining_rounded,
+                      color: AppColors.primary, size: 28),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Free delivery for orders',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                        Text('above PHP 300.00!',
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.muted)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: AppColors.muted),
+                ],
+              ),
+            ),
             for (final item in cart.items)
               Dismissible(
                 key: ValueKey(item.key),
