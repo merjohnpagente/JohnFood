@@ -661,7 +661,8 @@ class OrDivider extends StatelessWidget {
 }
 
 /// Brand logo box used on splash / login / register.
-/// Gradient orange with soft shadow — same look everywhere.
+/// Gradient orange with soft glow and burger + drink art.
+/// [iconSize] is kept for API compatibility; art scales with [size].
 class BrandLogo extends StatelessWidget {
   final double size;
   final double iconSize;
@@ -680,15 +681,69 @@ class BrandLogo extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 0.28),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: AppColors.primary.withOpacity(0.45),
+            blurRadius: size * 0.32,
+          ),
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.25),
+            blurRadius: size * 0.12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Icon(Icons.fastfood_rounded, size: iconSize, color: Colors.white),
+      alignment: Alignment.center,
+      child: CustomPaint(
+        size: Size.square(size * 0.62),
+        painter: _BrandLogoPainter(),
+      ),
     );
   }
+}
+
+/// White burger + drink cup art drawn to match the brand logo.
+class _BrandLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 100;
+    canvas.save();
+    canvas.scale(s);
+    // Center the 20..96 x-range and 24..90 y-range art in the 100 box.
+    canvas.translate(-8.0, -4.0);
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    // Burger dome (top half circle).
+    canvas.drawPath(
+      Path()
+        ..addArc(const Rect.fromLTWH(20, 36, 44, 44), 3.14159265, 3.14159265)
+        ..close(),
+      paint,
+    );
+    // Burger layers.
+    canvas.drawRRect(
+        RRect.fromLTRBR(20, 64, 64, 71, const Radius.circular(3.5)), paint);
+    canvas.drawRRect(
+        RRect.fromLTRBR(20, 75, 64, 82, const Radius.circular(3.5)), paint);
+    // Drink straw (behind cup).
+    canvas.drawRRect(
+        RRect.fromLTRBR(85, 22, 93, 52, const Radius.circular(4)), paint);
+    // Drink cup (tapered).
+    canvas.drawPath(
+      Path()
+        ..moveTo(70, 44)
+        ..lineTo(97, 44)
+        ..lineTo(91, 90)
+        ..lineTo(76, 90)
+        ..close(),
+      paint,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 }
 
 /// Auto-scrolling promo banner carousel (dark card like the design mockup).
