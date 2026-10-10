@@ -39,6 +39,30 @@ jobs:
           sed -i 's/android:label="[^"]*"/android:label="John Foods"/' android/app/src/main/AndroidManifest.xml
           git checkout -- web/index.html web/manifest.json || true
 
+      - name: Enable core library desugaring
+        run: |
+          python3 - <<'EOF'
+          import os
+          g = "android/app/build.gradle"
+          k = "android/app/build.gradle.kts"
+          if os.path.exists(g):
+              s = open(g).read()
+              if "coreLibraryDesugaring" not in s:
+                  s = s.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled = true", 1)
+                  s = s.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring \x27com.android.tools:desugar_jdk_libs:2.1.4\x27", 1)
+                  open(g, "w").write(s)
+                  print("patched Groovy build.gradle")
+          elif os.path.exists(k):
+              s = open(k).read()
+              if "coreLibraryDesugaring" not in s:
+                  s = s.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", 1)
+                  s = s.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring(\x27com.android.tools:desugar_jdk_libs:2.1.4\x27)", 1)
+                  open(k, "w").write(s)
+                  print("patched Kotlin build.gradle.kts")
+          else:
+              raise SystemExit("no android build file found")
+          EOF
+
       - name: Create debug signing keystore
         run: |
           keytool -genkeypair -v -keystore /tmp/johnfoods-debug.jks -alias johnfoods -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=JohnFoods, OU=Dev, O=MerjDev, L=CDO, ST=MO, C=PH"
