@@ -63,11 +63,6 @@ jobs:
               raise SystemExit("no android build file found")
           EOF
 
-      - name: Enable core library desugaring
-        run: |
-          sed -i 's/^\\(\\s*\\)sourceCompatibility = JavaVersion.VERSION_17/\\1coreLibraryDesugaringEnabled = true\n\\1sourceCompatibility = JavaVersion.VERSION_17/' android/app/build.gradle
-          printf "\\ndependencies {\\n    coreLibraryDesugaring \\x27com.android.tools:desugar_jdk_libs:2.0.4\\x27\\n}\\n" >> android/app/build.gradle
-          grep -n "Desugaring\|desugar" android/app/build.gradle
 
       - name: Create debug signing keystore
         run: |
