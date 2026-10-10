@@ -79,10 +79,16 @@ jobs:
         continue-on-error: true
 
       - name: Build release APK
-        run: >
-          flutter build apk --release
-          --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
+        run: |
+          set -o pipefail
+          flutter build apk --release --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} 2>&1 | tee /tmp/apk-build.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-build-log
+          path: /tmp/apk-build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
