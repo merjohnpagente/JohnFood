@@ -71,10 +71,10 @@ jobs:
           EOF
 
 
-      - name: Create debug signing keystore
+      - name: Use stable debug signing keystore
         run: |
-          keytool -genkeypair -v -keystore /tmp/johnfoods-debug.jks -alias johnfoods -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=JohnFoods, OU=Dev, O=MerjDev, L=CDO, ST=MO, C=PH"
-          printf "storePassword=android\nkeyPassword=android\nkeyAlias=johnfoods\nstoreFile=/tmp/johnfoods-debug.jks\n" > android/key.properties
+          printf "storePassword=android\nkeyPassword=android\nkeyAlias=androiddebugkey\nstoreFile=../keystores/johnfoods-debug.p12\n" > android/key.properties
+          keytool -list -v -keystore keystores/johnfoods-debug.p12 -storepass android -alias androiddebugkey 2>/dev/null | grep -m1 SHA1 || true
 
       - run: flutter pub get
 

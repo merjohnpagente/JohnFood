@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../firebase_options.dart';
 
@@ -32,14 +33,33 @@ class AuthService {
   }
 
   Future<UserCredential> signInWithGoogle() async {
-    final g = await GoogleSignIn().signIn();
-    if (g == null) throw FirebaseAuthException(code: 'cancelled', message: 'Sign in cancelled');
-    final auth = await g.authentication;
-    final cred = GoogleAuthProvider.credential(
-      accessToken: auth.accessToken,
-      idToken: auth.idToken,
-    );
-    final userCred = await _auth.signInWithCredential(cred);
+    // Web: use Firebase popup directly — the google_sign_in plugin
+    // needs an OAuth client-ID meta tag that we don't ship.
+    final UserCredential userCred;
+    if (kIsWeb) {
+      try {
+        userCred = await _auth.signInWithPopup(GoogleAuthProvider());
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'popup-closed-by-user' ||
+            e.code == 'cancelled-popup-request') {
+          throw FirebaseAuthException(
+              code: 'cancelled', message: 'Sign in cancelled');
+        }
+        rethrow;
+      }
+    } else {
+      final g = await GoogleSignIn().signIn();
+      if (g == null) {
+        throw FirebaseAuthException(
+            code: 'cancelled', message: 'Sign in cancelled');
+      }
+      final auth = await g.authentication;
+      final cred = GoogleAuthProvider.credential(
+        accessToken: auth.accessToken,
+        idToken: auth.idToken,
+      );
+      userCred = await _auth.signInWithCredential(cred);
+    }
     final doc = await _db.collection('users').doc(userCred.user!.uid).get();
     if (!doc.exists) {
       await _db.collection('users').doc(userCred.user!.uid).set({
