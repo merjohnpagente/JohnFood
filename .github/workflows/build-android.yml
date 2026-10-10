@@ -52,7 +52,7 @@ jobs:
           s = open(f).read()
           groovy = f.endswith(".gradle")
           flag = "coreLibraryDesugaringEnabled = true" if groovy else "isCoreLibraryDesugaringEnabled = true"
-          dep = "coreLibraryDesugaring \x27com.android.tools:desugar_jdk_libs:2.1.4\x27" if groovy else "coreLibraryDesugaring(\x27com.android.tools:desugar_jdk_libs:2.1.4\x27)"
+          dep = "coreLibraryDesugaring \x27com.android.tools:desugar_jdk_libs:2.1.4\x27" if groovy else 'coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
           if flag not in s:
               assert "compileOptions" in s, "no compileOptions block:\n" + s[:2000]
               s = re.sub(r"compileOptions\s*\{", "compileOptions {\n        " + flag, s, count=1)
