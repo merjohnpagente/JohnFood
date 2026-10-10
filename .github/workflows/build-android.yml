@@ -45,22 +45,24 @@ jobs:
           import os
           g = "android/app/build.gradle"
           k = "android/app/build.gradle.kts"
-          if os.path.exists(g):
-              s = open(g).read()
-              if "coreLibraryDesugaring" not in s:
-                  s = s.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled = true", 1)
-                  s = s.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring \x27com.android.tools:desugar_jdk_libs:2.1.4\x27", 1)
-                  open(g, "w").write(s)
-                  print("patched Groovy build.gradle")
-          elif os.path.exists(k):
-              s = open(k).read()
-              if "coreLibraryDesugaring" not in s:
-                  s = s.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", 1)
-                  s = s.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring(\x27com.android.tools:desugar_jdk_libs:2.1.4\x27)", 1)
-                  open(k, "w").write(s)
-                  print("patched Kotlin build.gradle.kts")
-          else:
-              raise SystemExit("no android build file found")
+          f = g if os.path.exists(g) else k
+          assert os.path.exists(f), "no android build file found"
+          s = open(f).read()
+          groovy = f.endswith(".gradle")
+          flag = "coreLibraryDesugaringEnabled = true" if groovy else "isCoreLibraryDesugaringEnabled = true"
+          dep = "coreLibraryDesugaring \x27com.android.tools:desugar_jdk_libs:2.1.4\x27" if groovy else "coreLibraryDesugaring(\x27com.android.tools:desugar_jdk_libs:2.1.4\x27)"
+          if flag not in s:
+              assert "compileOptions {" in s, "no compileOptions block"
+              s = s.replace("compileOptions {", "compileOptions {\n        " + flag, 1)
+          if "desugar_jdk_libs" not in s:
+              if "dependencies {" in s:
+                  s = s.replace("dependencies {", "dependencies {\n    " + dep, 1)
+              else:
+                  s += "\ndependencies {\n    " + dep + "\n}\n"
+          open(f, "w").write(s)
+          assert flag in open(f).read(), "flag missing after patch"
+          assert "desugar_jdk_libs" in open(f).read(), "dep missing after patch"
+          print("desugar patch verified in " + f)
           EOF
 
 
