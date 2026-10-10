@@ -39,6 +39,11 @@ jobs:
           sed -i 's/android:label="[^"]*"/android:label="John Foods"/' android/app/src/main/AndroidManifest.xml
           git checkout -- web/index.html web/manifest.json || true
 
+      - name: Create debug signing keystore
+        run: |
+          keytool -genkeypair -v -keystore /tmp/johnfoods-debug.jks -alias johnfoods -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=JohnFoods, OU=Dev, O=MerjDev, L=CDO, ST=MO, C=PH"
+          printf "storePassword=android\nkeyPassword=android\nkeyAlias=johnfoods\nstoreFile=/tmp/johnfoods-debug.jks\n" > android/key.properties
+
       - run: flutter pub get
 
       - name: Analyze
