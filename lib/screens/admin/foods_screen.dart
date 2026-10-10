@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../services/menu_service.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/motion.dart';
+import '../../utils/formatters.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -38,25 +41,94 @@ class FoodsScreen extends StatelessWidget {
               return const EmptyState(icon: Icons.fastfood_outlined, message: 'No foods. Import sample menu.');
             }
             return ListView.builder(
+              padding: const EdgeInsets.all(16),
               itemCount: docs.length,
               itemBuilder: (_, i) {
                 final m = docs[i].data();
                 final avail = (m['available'] ?? true) as bool;
-                return Card(
-                  child: SwitchListTile(
-                    title: Text('${m['name']}'),
-                    subtitle: Text('${m['price']}'),
-                    value: avail,
-                    onChanged: (v) => FirebaseFirestore.instance
-                        .collection('foods')
-                        .doc(docs[i].id)
-                        .update({'available': v}),
-                    secondary: IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      onPressed: () => FirebaseFirestore.instance
-                          .collection('foods')
-                          .doc(docs[i].id)
-                          .delete(),
+                return Entrance(
+                  delay:
+                      Duration(milliseconds: (i * 40).clamp(0, 320)),
+                  child: Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: SizedBox(
+                              width: 60,
+                              height: 60,
+                              child: FoodImage(
+                                  (m['image'] ?? '') as String),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text('${m['name']}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontWeight:
+                                            FontWeight.w700)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  formatPeso(
+                                      ((m['price'] ?? 0) as num)
+                                          .toDouble()),
+                                  style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  avail
+                                      ? 'Available'
+                                      : 'Hidden',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: avail
+                                          ? AppColors.success
+                                          : AppColors.muted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Switch(
+                                value: avail,
+                                onChanged: (v) =>
+                                    FirebaseFirestore
+                                        .instance
+                                        .collection('foods')
+                                        .doc(docs[i].id)
+                                        .update(
+                                            {'available': v}),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: AppColors.error,
+                                    size: 20),
+                                tooltip: 'Delete',
+                                onPressed: () =>
+                                    FirebaseFirestore.instance
+                                        .collection('foods')
+                                        .doc(docs[i].id)
+                                        .delete(),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );

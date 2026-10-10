@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/motion.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -21,17 +23,41 @@ class CategoriesScreen extends StatelessWidget {
               return const EmptyState(icon: Icons.category_outlined, message: 'No categories. Import sample menu.');
             }
             return ListView.builder(
+              padding: const EdgeInsets.all(16),
               itemCount: docs.length,
-              itemBuilder: (_, i) => Card(
-                child: ListTile(
-                  leading: const Icon(Icons.category_rounded),
-                  title: Text('${docs[i].data()['name']}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    onPressed: () => FirebaseFirestore.instance
-                        .collection('categories')
-                        .doc(docs[i].id)
-                        .delete(),
+              itemBuilder: (_, i) => Entrance(
+                delay:
+                    Duration(milliseconds: (i * 40).clamp(0, 320)),
+                child: Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 4),
+                    leading: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: AppColors.tint,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                          Icons.category_rounded,
+                          color: AppColors.primary),
+                    ),
+                    title: Text('${docs[i].data()['name']}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700)),
+                    trailing: IconButton(
+                      icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error),
+                      tooltip: 'Delete',
+                      onPressed: () => FirebaseFirestore
+                          .instance
+                          .collection('categories')
+                          .doc(docs[i].id)
+                          .delete(),
+                    ),
                   ),
                 ),
               ),

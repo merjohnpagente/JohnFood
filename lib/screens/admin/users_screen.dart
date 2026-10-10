@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/motion.dart';
 import '../../utils/error_mapper.dart';
 import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
@@ -24,31 +26,104 @@ class UsersScreen extends StatelessWidget {
               return const EmptyState(icon: Icons.people_outline_rounded, message: 'No users yet.');
             }
             return ListView.builder(
+              padding: const EdgeInsets.all(16),
               itemCount: docs.length,
               itemBuilder: (_, i) {
                 final m = docs[i].data();
                 final role = (m['role'] ?? 'customer') as String;
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      role == 'admin'
-                          ? Icons.admin_panel_settings_rounded
-                          : role == 'rider'
-                              ? Icons.delivery_dining_rounded
-                              : Icons.person_outline_rounded,
-                    ),
-                    title: Text('${m['name']}'),
-                    subtitle: Text('${m['email']} • $role'),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (v) => FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(docs[i].id)
-                          .update({'role': v}),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'customer', child: Text('Make customer')),
-                        PopupMenuItem(value: 'rider', child: Text('Make rider')),
-                        PopupMenuItem(value: 'admin', child: Text('Make admin')),
-                      ],
+                final name = '${m['name']}';
+                final icon = role == 'admin'
+                    ? Icons.admin_panel_settings_rounded
+                    : role == 'rider'
+                        ? Icons.delivery_dining_rounded
+                        : Icons.person_outline_rounded;
+                final badgeColor = role == 'admin'
+                    ? AppColors.primary
+                    : role == 'rider'
+                        ? const Color(0xFF1565C0)
+                        : AppColors.success;
+                final badgeBg = role == 'admin'
+                    ? AppColors.tint
+                    : role == 'rider'
+                        ? const Color(0xFFE3F2FD)
+                        : AppColors.successBg;
+                return Entrance(
+                  delay:
+                      Duration(milliseconds: (i * 40).clamp(0, 320)),
+                  child: Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 4),
+                      leading: CircleAvatar(
+                        backgroundColor: AppColors.tint,
+                        child: Text(
+                          name.isNotEmpty
+                              ? name[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      title: Text(name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700)),
+                      subtitle: Text('${m['email']}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.muted)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius:
+                                  BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(icon,
+                                    size: 13, color: badgeColor),
+                                const SizedBox(width: 4),
+                                Text(role,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight:
+                                            FontWeight.w700,
+                                        color: badgeColor)),
+                              ],
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            icon: const Icon(
+                                Icons.more_vert_rounded,
+                                color: AppColors.muted),
+                            onSelected: (v) =>
+                                FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(docs[i].id)
+                                    .update({'role': v}),
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                  value: 'customer',
+                                  child: Text('Make customer')),
+                              PopupMenuItem(
+                                  value: 'rider',
+                                  child: Text('Make rider')),
+                              PopupMenuItem(
+                                  value: 'admin',
+                                  child: Text('Make admin')),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
