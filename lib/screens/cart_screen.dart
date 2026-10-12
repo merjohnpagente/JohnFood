@@ -78,7 +78,7 @@ class _CartScreenState extends State<CartScreen> {
                 color: AppColors.warningBg,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.delivery_dining_rounded,
                       color: AppColors.primary, size: 28),

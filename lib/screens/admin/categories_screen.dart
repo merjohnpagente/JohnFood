@@ -97,7 +97,7 @@ class CategoriesScreen extends StatelessWidget {
             'drinks': Icons.local_drink_rounded,
             'dessert': Icons.cake_rounded,
             'pizza': Icons.local_pizza_rounded,
-            'healthy': Icons.salad_rounded,
+            'healthy': Icons.eco_rounded,
             'breakfast': Icons.breakfast_dining_rounded,
           };
           final result = await showDialog<Map<String, String>>(

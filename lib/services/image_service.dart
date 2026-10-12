@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
@@ -42,7 +43,7 @@ class ImageService {
   /// Compress to a small JPEG (max 1024px, quality 70) so receipts stay
   /// well under Firestore's 1MiB document limit.
   List<int> compressReceipt(List<int> rawBytes) {
-    final decoded = img.decodeImage(rawBytes);
+    final decoded = img.decodeImage(Uint8List.fromList(rawBytes));
     if (decoded == null) throw Exception('Could not read image');
     final resized = decoded.width > 1024
         ? img.copyResize(decoded, width: 1024)
