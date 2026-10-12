@@ -40,12 +40,12 @@ class UsersScreen extends StatelessWidget {
                 final badgeColor = role == 'admin'
                     ? AppColors.primary
                     : role == 'rider'
-                        ? const Color(0xFF1565C0)
+                        ? AppColors.info
                         : AppColors.success;
                 final badgeBg = role == 'admin'
                     ? AppColors.tint
                     : role == 'rider'
-                        ? const Color(0xFFE3F2FD)
+                        ? AppColors.infoBg
                         : AppColors.successBg;
                 return Entrance(
                   delay:
@@ -211,7 +211,7 @@ class _RiderFormState extends State<_RiderForm> {
             const Text('Add rider', style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             const Text('Creates a rider login. The admin stays signed in.',
-                style: TextStyle(color: Colors.grey, fontSize: 12)),
+                style: TextStyle(color: AppColors.muted, fontSize: 12)),
             const SizedBox(height: 12),
             AppTextField(controller: _name, label: 'Name',
                 validator: (v) => validateRequired(v, 'rider name')),

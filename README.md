@@ -16,7 +16,17 @@ production where prices must be computed server-side.
 4. GitHub repo Settings > Secrets and variables > Actions: add
    `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_PROJECT_ID`,
    optional `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET`,
+   `GOOGLE_SERVICES_JSON` (whole google-services.json file content,
+   required for Google sign-in on Android),
+   `GOOGLE_SERVER_CLIENT_ID` (Web OAuth client ID from Firebase console >
+   Project settings > General, required for Google sign-in on Android),
    plus Vercel `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+   Firebase console > Project settings > Android app: register the SHA-1
+   of the debug keystore (`keystores/johnfoods-debug.p12`, alias
+   `androiddebugkey`) and of your release key, otherwise Google sign-in
+   fails with ApiException 10. Authentication > Settings > Authorized
+   domains: add your GitHub Pages and Vercel domains or web Google
+   sign-in will fail.
 5. Settings > Pages > Source: GitHub Actions (kept).
 6. Commit to `main`. Actions tab:
    - Build Android APK: download `john-foods-apk` artifact, install on phone.

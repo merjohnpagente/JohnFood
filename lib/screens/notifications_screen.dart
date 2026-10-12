@@ -5,6 +5,7 @@ import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
+import 'tracking_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -78,8 +79,18 @@ class NotificationsScreen extends StatelessWidget {
                             color: AppColors.muted),
                       ],
                     ),
-                    onTap: () =>
-                        NotificationService().markRead(uid, n.id),
+                    onTap: () {
+                      NotificationService().markRead(uid, n.id);
+                      if (n.orderId.isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                TrackingScreen(orderId: n.orderId),
+                          ),
+                        );
+                      }
+                    },
                   ),
                 );
               },

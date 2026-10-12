@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/review_service.dart';
+import '../theme/app_theme.dart';
+import '../utils/error_mapper.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
 
@@ -43,10 +45,10 @@ class _ReviewSheetState extends State<ReviewSheet> {
                 for (var i = 1; i <= 5; i++)
                   IconButton(
                     onPressed: () => setState(() => _rating = i.toDouble()),
-                    icon: Icon(
-                      i <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
-                      color: const Color(0xFFFFB300),
-                    ),
+                      icon: Icon(
+                        i <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                        color: AppColors.accent,
+                      ),
                   ),
               ],
             ),
@@ -57,14 +59,29 @@ class _ReviewSheetState extends State<ReviewSheet> {
               loading: _sending,
               onPressed: () async {
                 setState(() => _sending = true);
-                await ReviewService().submitReview(
-                  orderId: widget.orderId,
-                  userId: widget.userId,
-                  foodId: widget.foodId,
-                  rating: _rating,
-                  comment: _comment.text.trim(),
-                );
-                if (context.mounted) Navigator.pop(context);
+                try {
+                  await ReviewService().submitReview(
+                    orderId: widget.orderId,
+                    userId: widget.userId,
+                    foodId: widget.foodId,
+                    rating: _rating,
+                    comment: _comment.text.trim(),
+                  );
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Thanks for the review!')),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(friendlyError(e))),
+                    );
+                  }
+                } finally {
+                  if (mounted) setState(() => _sending = false);
+                }
               },
             ),
             const SizedBox(height: 16),

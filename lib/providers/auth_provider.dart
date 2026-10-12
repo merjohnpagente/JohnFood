@@ -71,6 +71,46 @@ class AuthProvider extends ChangeNotifier {
     await _onAuth(u);
   }
 
+  /// Optimistic favorite toggle, persisted to the user doc.
+  /// Reverts locally if the write fails.
+  Future<void> toggleFavorite(String foodId) async {
+    final u = _user;
+    if (u == null) return;
+    final next = [...u.favorites];
+    if (next.contains(foodId)) {
+      next.remove(foodId);
+    } else {
+      next.add(foodId);
+    }
+    final prev = u.favorites;
+    _user = AppUser(
+      uid: u.uid,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      phone: u.phone,
+      photoUrl: u.photoUrl,
+      addresses: u.addresses,
+      favorites: next,
+    );
+    notifyListeners();
+    try {
+      await _service.updateFavorites(u.uid, next);
+    } catch (_) {
+      _user = AppUser(
+        uid: u.uid,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        phone: u.phone,
+        photoUrl: u.photoUrl,
+        addresses: u.addresses,
+        favorites: prev,
+      );
+      notifyListeners();
+      rethrow;
+    }
+  }
   Future<void> retry() async {
     _loading = true;
     _error = null;

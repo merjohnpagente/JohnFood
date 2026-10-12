@@ -20,6 +20,8 @@ class AppColors {
   static const error = Color(0xFFC62828);
   static const errorBg = Color(0xFFFFEBEE);
   static const accent = Color(0xFFFFB300);
+  static const info = Color(0xFF1565C0);
+  static const infoBg = Color(0xFFE3F2FD);
   static const shimmer = Color(0xFFF5F0EC);
 }
 

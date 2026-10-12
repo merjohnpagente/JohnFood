@@ -11,6 +11,14 @@ class AppConfig {
   static bool get cloudinaryConfigured =>
       cloudinaryCloudName.isNotEmpty && cloudinaryUploadPreset.isNotEmpty;
 
+  // Web OAuth client ID for Google Sign-In on Android (google_sign_in v6
+  // needs serverClientId to return an idToken for Firebase).
+  // Firebase console > Project settings > General > Web SDK configuration.
+  // Safe to ship (public client ID, like the Firebase apiKey).
+  // Pass with --dart-define=GOOGLE_SERVER_CLIENT_ID=xxx in CI.
+  static const String googleServerClientId =
+      String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
+
   // Set to true to talk to local Firestore/Auth emulators during development.
   static const bool useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
   static const String emulatorHost = String.fromEnvironment('EMULATOR_HOST', defaultValue: '10.0.2.2');

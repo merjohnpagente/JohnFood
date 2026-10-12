@@ -14,13 +14,18 @@ class MenuProvider extends ChangeNotifier {
   String query = '';
   String selectedCategory = '';
   Timer? _debounce;
+  StreamSubscription? _catSub;
+  StreamSubscription? _foodSub;
 
   MenuProvider() {
-    _service.watchCategories().listen((c) {
+    _catSub = _service.watchCategories().listen((c) {
       categories = c;
       notifyListeners();
+    }, onError: (_) {
+      offline = true;
+      notifyListeners();
     });
-    _service.watchFoods().listen((f) {
+    _foodSub = _service.watchFoods().listen((f) {
       foods = f;
       loading = false;
       notifyListeners();
@@ -36,13 +41,22 @@ class MenuProvider extends ChangeNotifier {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () async {
       if (q.trim().isEmpty) {
-        _service.watchFoods(category: selectedCategory.isEmpty ? null : selectedCategory).first.then((f) {
-          foods = f;
-          notifyListeners();
-        });
+        try {
+          foods = await _service
+              .watchFoods(
+                  category: selectedCategory.isEmpty ? null : selectedCategory)
+              .first;
+        } catch (_) {
+          offline = true;
+        }
+        notifyListeners();
         return;
       }
-      foods = await _service.searchFoods(q);
+      try {
+        foods = await _service.searchFoods(q);
+      } catch (_) {
+        offline = true;
+      }
       notifyListeners();
     });
   }
@@ -58,12 +72,18 @@ class MenuProvider extends ChangeNotifier {
       foods = f;
       loading = false;
       notifyListeners();
+    }).catchError((_) {
+      loading = false;
+      offline = true;
+      notifyListeners();
     });
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _catSub?.cancel();
+    _foodSub?.cancel();
     super.dispose();
   }
 }

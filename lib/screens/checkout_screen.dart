@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
+import '../services/image_service.dart';
+import '../services/location_service.dart';
 import '../services/order_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_mapper.dart';
@@ -23,12 +26,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _address = TextEditingController();
   final _phone = TextEditingController();
   final _notes = TextEditingController();
+  final _paymentRef = TextEditingController();
   String _payment = 'Cash on delivery';
   bool _placing = false;
+  late final String _clientRequestId;
+  double? _lat;
+  double? _lng;
+  bool _locLoading = false;
+  List<int>? _proofBytes;
+  String _proofName = 'receipt.jpg';
+
+  bool get _needsProof => _payment == 'GCash' || _payment == 'Maya';
 
   @override
   void initState() {
     super.initState();
+    _clientRequestId =
+        '${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().toString()}';
     _loadPreferredPayment();
   }
 
@@ -49,11 +63,66 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _address.dispose();
     _phone.dispose();
     _notes.dispose();
+    _paymentRef.dispose();
     super.dispose();
+  }
+
+  Future<void> _useLocation() async {
+    setState(() => _locLoading = true);
+    try {
+      final p = await LocationService().current();
+      if (mounted) {
+        setState(() {
+          _lat = p.latitude;
+          _lng = p.longitude;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location attached to order')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Could not get location. Check permission.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _locLoading = false);
+    }
+  }
+
+  Future<void> _pickProof() async {
+    try {
+      final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        imageQuality: 75,
+      );
+      if (x == null) return;
+      final raw = await x.readAsBytes();
+      final small = ImageService().compressReceipt(raw.toList());
+      if (!mounted) return;
+      setState(() {
+        _proofBytes = small;
+        _proofName = x.name.isEmpty ? 'receipt.jpg' : x.name;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+    }
   }
 
   Future<void> _place() async {
     if (_placed || !_form.currentState!.validate()) return;
+    if (_needsProof && _proofBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Attach your payment screenshot')),
+      );
+      return;
+    }
     setState(() => _placing = true);
     try {
       final cart = context.read<CartProvider>();
@@ -62,11 +131,31 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         userId: uid,
         items: cart.items,
         address: _address.text.trim(),
+        phone: _phone.text.trim(),
         paymentMethod: _payment,
         notes: _notes.text.trim(),
         discount: cart.discount,
-        clientRequestId: '${uid}_${DateTime.now().millisecondsSinceEpoch}',
+        customerLat: _lat,
+        customerLng: _lng,
+        paymentRef: _needsProof ? _paymentRef.text.trim() : '',
+        clientRequestId: '${uid}_$_clientRequestId',
       );
+      // Attach proof after the order exists (works for both Cloudinary
+      // URLs and the base64 fallback doc).
+      if (_proofBytes != null) {
+        try {
+          final marker = await ImageService()
+              .uploadPaymentProof(id, _proofBytes!, _proofName);
+          await OrderService()
+              .updatePaymentProof(orderId: id, paymentProofUrl: marker);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                    'Order placed but proof upload failed: ${friendlyError(e)}')));
+          }
+        }
+      }
       cart.clear();
       setState(() => _placed = true);
       if (mounted) {
@@ -88,6 +177,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
+    final savedAddresses =
+        context.watch<AuthProvider>().user?.addresses ?? [];
+    final cartEmpty = cart.items.isEmpty;
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout')),
       body: ContentWidth(
@@ -114,6 +206,59 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                         const SizedBox(height: 16),
                         AppTextField(controller: _address, label: 'Delivery address', validator: (v) => validateRequired(v, 'delivery address')),
+                        if (savedAddresses.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final a in savedAddresses.take(3))
+                                ActionChip(
+                                  label: Text(
+                                    a.length > 28
+                                        ? '${a.substring(0, 28)}...'
+                                        : a,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  onPressed: () => setState(
+                                      () => _address.text = a),
+                                ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed:
+                                    _locLoading ? null : _useLocation,
+                                icon: _locLoading
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2))
+                                    : const Icon(
+                                        Icons.my_location_rounded,
+                                        size: 18),
+                                label: Text(_lat == null
+                                    ? 'Use my location'
+                                    : 'Location attached'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_lat != null && _lng != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'GPS: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.muted),
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         AppTextField(controller: _phone, label: 'Contact number', validator: validatePhone, keyboardType: TextInputType.phone),
                         const SizedBox(height: 12),
@@ -149,6 +294,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           ],
                           onChanged: (v) => setState(() => _payment = v ?? _payment),
                         ),
+                        if (_needsProof) ...[
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Pay to the merchant wallet, then enter the reference number and attach the screenshot. Admin verifies before food is prepared.',
+                            style: TextStyle(
+                                fontSize: 13, color: AppColors.muted),
+                          ),
+                          const SizedBox(height: 12),
+                          AppTextField(
+                            controller: _paymentRef,
+                            label: 'Reference number',
+                            validator: (v) => _needsProof
+                                ? validateRequired(v, 'reference number')
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _pickProof,
+                                  icon: const Icon(
+                                      Icons.receipt_long_rounded,
+                                      size: 18),
+                                  label: Text(_proofBytes == null
+                                      ? 'Attach screenshot'
+                                      : 'Change screenshot'),
+                                ),
+                              ),
+                              if (_proofBytes != null) ...[
+                                const SizedBox(width: 8),
+                                const Icon(Icons.check_circle_rounded,
+                                    color: AppColors.success),
+                              ],
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -247,9 +429,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       ),
       bottomNavigationBar: BottomActionBar(
-        label: _placing ? 'Placing...' : 'Place order',
+        label: _placing
+            ? 'Placing...'
+            : cartEmpty
+                ? 'Cart is empty'
+                : 'Place order',
         total: formatPeso(cart.total),
-        onPressed: _placing ? null : _place,
+        onPressed: (_placing || cartEmpty) ? null : _place,
       ),
     );
   }

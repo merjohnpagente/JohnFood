@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../services/image_service.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/motion.dart';
@@ -15,9 +17,11 @@ class AdminOrdersScreen extends StatefulWidget {
 
 class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   String _filter = '';
+  Map<String, String?> _riderPick = {};
   static const _statuses = [
     '',
     'pending',
+    'assigned',
     'preparing',
     'on_the_way',
     'delivered',
@@ -26,6 +30,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   static const _labels = [
     'All',
     'Pending',
+    'Assigned',
     'Preparing',
     'On the way',
     'Delivered',
@@ -266,28 +271,196 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     final m = d.data();
     final uid = (m['userId'] ?? '') as String;
     final current = (m['status'] ?? '') as String;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    final currentRider = (m['riderId'] as String?) ?? '';
+    final phone = (m['phone'] ?? '') as String;
+    final payMethod = (m['paymentMethod'] ?? 'Cash on delivery') as String;
+    final payRef = (m['paymentRef'] ?? '') as String;
+    final payProof = (m['paymentProofUrl'] ?? '') as String;
+    final payVerified = (m['paymentVerified'] ?? false) as bool;
+    final needsVerify = (payMethod == 'GCash' || payMethod == 'Maya') &&
+        !payVerified &&
+        (current == 'pending' || current == 'assigned');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        for (final s in [
-          'preparing',
-          'on_the_way',
-          'delivered',
-          'cancelled'
-        ])
-          FilledButton.tonal(
-            onPressed: s == current
-                ? null
-                : () => OrderService().changeStatus(
-                      orderId: d.id,
-                      userId: uid,
-                      status: s,
-                    ),
-            child: Text(_label(s),
-                style: const TextStyle(fontSize: 13)),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text('Pay: $payMethod${payVerified ? ' (verified)' : ''}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.ink)),
+        ),
+        if (payRef.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('Ref: $payRef',
+                style:
+                    const TextStyle(fontSize: 13, color: AppColors.muted)),
           ),
+        if (needsVerify) ...[
+          _proofView(payProof, d.id),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton(
+                onPressed: () => OrderService().verifyPayment(
+                  orderId: d.id,
+                  customerId: uid,
+                  verified: true,
+                ),
+                child:
+                    const Text('Verify', style: TextStyle(fontSize: 13)),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () => OrderService().verifyPayment(
+                  orderId: d.id,
+                  customerId: uid,
+                  verified: false,
+                ),
+                child:
+                    const Text('Reject', style: TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('Verify payment before assigning a rider.',
+              style: TextStyle(fontSize: 12, color: AppColors.muted)),
+          const SizedBox(height: 8),
+        ],
+        if (phone.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('Phone: $phone',
+                style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+          ),
+        if (currentRider.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('Rider: ${currentRider.substring(0, currentRider.length > 6 ? 6 : currentRider.length)}',
+                style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+          ),
+        // Rider assignment: admin picks rider then assigns.
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .where('role', isEqualTo: 'rider')
+              .limit(20)
+              .snapshots(),
+          builder: (context, snap) {
+            final riders = snap.data?.docs ?? [];
+            if (riders.isEmpty) {
+              return const Text('No riders. Add one in Users tab.',
+                  style: TextStyle(fontSize: 13, color: AppColors.muted));
+            }
+            final picked = _riderPick[d.id] ?? currentRider;
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButton<String>(
+                  value: riders.any((r) => r.id == picked) ? picked : null,
+                  hint: const Text('Select rider',
+                      style: TextStyle(fontSize: 13)),
+                  items: [
+                    for (final r in riders)
+                      DropdownMenuItem(
+                        value: r.id,
+                        child: Text(
+                          '${(r.data()['name'] ?? 'Rider')} (${r.id.substring(0, r.id.length > 4 ? 4 : r.id.length)})',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => _riderPick[d.id] = v),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonal(
+                  onPressed: (_riderPick[d.id] == null ||
+                          _riderPick[d.id]!.isEmpty)
+                      ? null
+                      : () => OrderService().changeStatus(
+                            orderId: d.id,
+                            userId: uid,
+                            status: 'assigned',
+                            riderId: _riderPick[d.id],
+                          ),
+                  child: const Text('Assign',
+                      style: TextStyle(fontSize: 13)),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final s in [
+              'preparing',
+              'on_the_way',
+              'delivered',
+              'cancelled'
+            ])
+              FilledButton.tonal(
+                onPressed: s == current
+                    ? null
+                    : () => OrderService().changeStatus(
+                          orderId: d.id,
+                          userId: uid,
+                          status: s,
+                          riderId: _riderPick[d.id] ?? (currentRider.isEmpty ? null : currentRider),
+                        ),
+                child: Text(_label(s),
+                    style: const TextStyle(fontSize: 13)),
+              ),
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _proofView(String url, String orderId) {
+    if (url.isEmpty) {
+      return const Text('No proof attached yet.',
+          style: TextStyle(fontSize: 13, color: AppColors.error));
+    }
+    if (url.startsWith('http')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(url,
+            height: 140, fit: BoxFit.cover, errorBuilder: (_, __, ___) =>
+                const Text('Could not load proof.',
+                    style: TextStyle(fontSize: 13))),
+      );
+    }
+    return FutureBuilder<String?>(
+      future: ImageService().cachedProof(orderId),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+              height: 60, child: Center(child: CircularProgressIndicator()));
+        }
+        final b64 = snap.data;
+        if (b64 == null || b64.isEmpty) {
+          return const Text('Could not load proof.',
+              style: TextStyle(fontSize: 13));
+        }
+        try {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.memory(base64Decode(b64),
+                height: 140, fit: BoxFit.cover),
+          );
+        } catch (_) {
+          return const Text('Could not load proof.',
+              style: TextStyle(fontSize: 13));
+        }
+      },
     );
   }
 }

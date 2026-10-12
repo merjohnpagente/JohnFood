@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/menu_provider.dart';
 import '../theme/app_theme.dart';
@@ -19,6 +20,31 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
   int _qty = 1;
   String _option = '';
   bool _fav = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fav = context
+            .read<AuthProvider>()
+            .user
+            ?.favorites
+            .contains(widget.foodId) ??
+        false;
+  }
+
+  Future<void> _toggleFav() async {
+    setState(() => _fav = !_fav);
+    try {
+      await context.read<AuthProvider>().toggleFavorite(widget.foodId);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _fav = !_fav);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save favorite.')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +130,7 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
               borderRadius: BorderRadius.circular(12),
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => setState(() => _fav = !_fav),
+                onTap: _toggleFav,
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Icon(
@@ -119,10 +145,7 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
       ],
     );
 
-    Widget heroImage({double? height}) => Hero(
-          tag: 'food-${food.name}',
-          child: FoodImage(food.image),
-        );
+    Widget heroImage() => FoodImage(food.image);
 
     Widget overlayBtn({required IconData icon, required VoidCallback onTap}) =>
         Material(
@@ -172,7 +195,7 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
                   icon: _fav
                       ? Icons.favorite_rounded
                       : Icons.favorite_outline_rounded,
-                  onTap: () => setState(() => _fav = !_fav),
+                  onTap: _toggleFav,
                 ),
                 const SizedBox(width: 8),
                 overlayBtn(
@@ -214,8 +237,8 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFEFE8E3))),
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border)),
         ),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: SafeArea(

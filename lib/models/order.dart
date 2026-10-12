@@ -31,12 +31,16 @@ class Order {
   final double total;
   final String status;
   final String address;
+  final String phone;
   final double? customerLat;
   final double? customerLng;
   final String? riderId;
   final double? riderLat;
   final double? riderLng;
   final String paymentMethod;
+  final String paymentRef;
+  final String paymentProofUrl;
+  final bool paymentVerified;
   final String notes;
   final DateTime? createdAt;
 
@@ -50,12 +54,16 @@ class Order {
     required this.total,
     required this.status,
     required this.address,
+    required this.phone,
     this.customerLat,
     this.customerLng,
     this.riderId,
     this.riderLat,
     this.riderLng,
     required this.paymentMethod,
+    this.paymentRef = '',
+    this.paymentProofUrl = '',
+    this.paymentVerified = false,
     required this.notes,
     this.createdAt,
   });
@@ -74,12 +82,16 @@ class Order {
       total: ((m['total'] ?? 0) as num).toDouble(),
       status: (m['status'] ?? 'pending') as String,
       address: (m['address'] ?? '') as String,
+      phone: (m['phone'] ?? '') as String,
       customerLat: (m['customerLat'] as num?)?.toDouble(),
       customerLng: (m['customerLng'] as num?)?.toDouble(),
       riderId: m['riderId'] as String?,
       riderLat: (m['riderLat'] as num?)?.toDouble(),
       riderLng: (m['riderLng'] as num?)?.toDouble(),
       paymentMethod: (m['paymentMethod'] ?? 'Cash on delivery') as String,
+      paymentRef: (m['paymentRef'] ?? '') as String,
+      paymentProofUrl: (m['paymentProofUrl'] ?? '') as String,
+      paymentVerified: (m['paymentVerified'] ?? false) as bool,
       notes: (m['notes'] ?? '') as String,
       createdAt: (m['createdAt'] as Timestamp?)?.toDate(),
     );

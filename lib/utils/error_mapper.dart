@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 
 /// Never show raw Firebase or exception text to users.
 String friendlyError(Object e) {
@@ -20,9 +21,35 @@ String friendlyError(Object e) {
         return 'No connection. Check internet and retry.';
       case 'too-many-requests':
         return 'Too many attempts. Try again later.';
+      case 'operation-not-allowed':
+        return 'This sign-in method is disabled. Contact support.';
+      case 'account-exists-with-different-credential':
+        return 'This email uses another sign-in method. Try email login instead.';
+      case 'popup-closed-by-user':
+      case 'cancelled-popup-request':
+      case 'cancelled':
+        return 'Sign in cancelled.';
+      case 'popup-blocked':
+        return 'Popup blocked. Allow popups for this site and retry.';
+      case 'unauthorized-domain':
+        return 'This site is not authorized for sign-in. Contact support.';
+      case 'missing-id-token':
+        return 'Google sign-in is misconfigured on this build. Try email login or contact support.';
       default:
         return 'Something went wrong. Please retry.';
     }
+  }
+  if (e is PlatformException) {
+    final msg = '${e.code} ${e.message ?? ''}';
+    // Google Sign-In ApiException 10 = SHA-1 / google-services.json missing.
+    if (msg.contains('10') || msg.contains('DEVELOPER_ERROR')) {
+      return 'Google sign-in is not set up for this app build. Try email login or contact support.';
+    }
+    if (e.code == 'sign_in_canceled') return 'Sign in cancelled.';
+    if (e.code == 'network_error') {
+      return 'No connection. Check internet and retry.';
+    }
+    return 'Something went wrong. Please retry.';
   }
   if (e is FirebaseException) {
     if (e.code == 'permission-denied') {
@@ -32,6 +59,10 @@ String friendlyError(Object e) {
       return 'Service offline. Showing saved data.';
     }
     return 'Something went wrong. Please retry.';
+  }
+  final text = e.toString();
+  if (text.contains('ApiException: 10') || text.contains('DEVELOPER_ERROR')) {
+    return 'Google sign-in is not set up for this app build. Try email login or contact support.';
   }
   return 'Something went wrong. Please retry.';
 }

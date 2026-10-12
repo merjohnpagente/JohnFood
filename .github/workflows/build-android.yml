@@ -39,6 +39,12 @@ jobs:
           sed -i 's/android:label="[^"]*"/android:label="John Foods"/' android/app/src/main/AndroidManifest.xml
           git checkout -- web/index.html web/manifest.json || true
 
+      - name: Add location permissions (rider tracking + checkout GPS)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q "ACCESS_FINE_LOCATION" $M || sed -i '/<manifest/a \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"\/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"\/>' $M
+          grep "ACCESS_FINE_LOCATION" $M
+
       - name: Enable core library desugaring
         run: |
           ls android/app/
@@ -78,6 +84,18 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Restore google-services.json (Google sign-in needs this)
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            printf '%s' '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+            echo "google-services.json restored"
+          else
+            echo "WARNING: GOOGLE_SERVICES_JSON secret missing - Google sign-in will fail at runtime (email login still works)"
+          fi
+
+      - name: Generate launcher icons from assets/icon/icon_1024.png
+        run: dart run flutter_launcher_icons
+
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
@@ -88,7 +106,7 @@ jobs:
       - name: Build release APK
         run: |
           set -o pipefail
-          flutter build apk --release --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} 2>&1 | tee /tmp/apk-build.log
+          flutter build apk --release --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }} 2>&1 | tee /tmp/apk-build.log
 
       - name: Upload build log on failure
         if: failure()

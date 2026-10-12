@@ -19,6 +19,7 @@ class OrdersProvider extends ChangeNotifier {
   List<Order> get active => orders
       .where((o) =>
           o.status == 'pending' ||
+          o.status == 'assigned' ||
           o.status == 'preparing' ||
           o.status == 'on_the_way')
       .toList();
@@ -47,9 +48,15 @@ class AdminProvider extends ChangeNotifier {
     int active = 0;
     for (final d in snap.docs) {
       final m = d.data();
-      rev += ((m['total'] ?? 0) as num).toDouble();
       final s = (m['status'] ?? '') as String;
-      if (s == 'pending' || s == 'preparing' || s == 'on_the_way') active++;
+      // Cancelled orders earn nothing — keep revenue honest.
+      if (s != 'cancelled') {
+        rev += ((m['total'] ?? 0) as num).toDouble();
+      }
+      if (s == 'pending' ||
+          s == 'assigned' ||
+          s == 'preparing' ||
+          s == 'on_the_way') active++;
     }
     todayRevenue = rev;
     activeOrders = active;

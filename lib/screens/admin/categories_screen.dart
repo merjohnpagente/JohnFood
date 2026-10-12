@@ -52,11 +52,34 @@ class CategoriesScreen extends StatelessWidget {
                           Icons.delete_outline_rounded,
                           color: AppColors.error),
                       tooltip: 'Delete',
-                      onPressed: () => FirebaseFirestore
-                          .instance
-                          .collection('categories')
-                          .doc(docs[i].id)
-                          .delete(),
+                      onPressed: () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Delete category?'),
+                            content: Text(
+                                '"${docs[i].data()['name']}" will be removed. Foods in it stay but lose their filter.'),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(context, false),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.pop(context, true),
+                                child: const Text('Delete'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (ok == true) {
+                          await FirebaseFirestore.instance
+                              .collection('categories')
+                              .doc(docs[i].id)
+                              .delete();
+                        }
+                      },
                     ),
                   ),
                 ),
@@ -68,21 +91,67 @@ class CategoriesScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final c = TextEditingController();
-          final name = await showDialog<String>(
+          String icon = 'fastfood';
+          const icons = {
+            'fastfood': Icons.fastfood_rounded,
+            'drinks': Icons.local_drink_rounded,
+            'dessert': Icons.cake_rounded,
+            'pizza': Icons.local_pizza_rounded,
+            'healthy': Icons.salad_rounded,
+            'breakfast': Icons.breakfast_dining_rounded,
+          };
+          final result = await showDialog<Map<String, String>>(
             context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('Add category'),
-              content: AppTextField(controller: c, label: 'Name'),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                FilledButton(onPressed: () => Navigator.pop(context, c.text.trim()), child: const Text('Save')),
-              ],
+            builder: (_) => StatefulBuilder(
+              builder: (context, setState) => AlertDialog(
+                title: const Text('Add category'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppTextField(controller: c, label: 'Name'),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: icon,
+                      decoration:
+                          const InputDecoration(labelText: 'Icon'),
+                      items: [
+                        for (final e in icons.entries)
+                          DropdownMenuItem(
+                            value: e.key,
+                            child: Row(
+                              children: [
+                                Icon(e.value,
+                                    size: 18,
+                                    color: AppColors.primary),
+                                const SizedBox(width: 8),
+                                Text(e.key),
+                              ],
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => icon = v ?? icon),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(
+                          context, {'name': c.text.trim(), 'icon': icon}),
+                      child: const Text('Save')),
+                ],
+              ),
             ),
           );
-          if (name != null && name.isNotEmpty) {
+          c.dispose();
+          final name = result?['name'] ?? '';
+          if (name.isNotEmpty) {
             await FirebaseFirestore.instance.collection('categories').add({
               'name': name,
-              'icon': 'fastfood',
+              'icon': result!['icon'],
               'order': DateTime.now().millisecondsSinceEpoch,
             });
           }

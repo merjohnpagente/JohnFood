@@ -57,9 +57,11 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       // User dismissed the Google picker: stay silent, no error shown.
       if (e.code != 'cancelled') {
+        debugPrint('Google sign-in failed: ${e.code} ${e.message}');
         setState(() => _error = friendlyError(e));
       }
     } catch (e) {
+      debugPrint('Google sign-in failed: $e');
       setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);

@@ -13,6 +13,24 @@ double calcTotal(double subtotal, double fee, double discount) =>
 class OrderService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  static const allowedPayments = [
+    'Cash on delivery',
+    'GCash',
+    'Maya',
+    'Card',
+    'E-wallet',
+  ];
+
+  /// Forward-only transitions. Admin may still cancel from any active state.
+  static const Map<String, List<String>> allowedTransitions = {
+    'pending': ['assigned', 'preparing', 'cancelled'],
+    'assigned': ['preparing', 'cancelled'],
+    'preparing': ['on_the_way', 'cancelled'],
+    'on_the_way': ['delivered', 'cancelled'],
+    'delivered': [],
+    'cancelled': [],
+  };
+
   Stream<List<Order>> watchUserOrders(String uid, {bool activeOnly = false}) {
     Query<Map<String, dynamic>> q = _db
         .collection('orders')
@@ -25,6 +43,7 @@ class OrderService {
         list = list
             .where((o) =>
                 o.status == 'pending' ||
+                o.status == 'assigned' ||
                 o.status == 'preparing' ||
                 o.status == 'on_the_way')
             .toList();
@@ -40,20 +59,59 @@ class OrderService {
       .map((d) => d.exists ? Order.fromDoc(d) : null);
 
   /// Places an order + notification entry atomically (no Cloud Functions).
+  /// Idempotent via [clientRequestId]: retrying with the same id returns
+  /// the original order instead of creating a duplicate.
   Future<String> placeOrder({
     required String userId,
     required List<CartItem> items,
     required String address,
+    required String phone,
     required String paymentMethod,
     required String notes,
     double discount = 0,
     double? customerLat,
     double? customerLng,
+    String paymentRef = '',
+    String paymentProofUrl = '',
     required String clientRequestId,
   }) async {
+    if (items.isEmpty) throw Exception('Cart is empty');
+    if (items.length > 50) throw Exception('Too many items');
+    final cleanAddress = address.trim();
+    if (cleanAddress.length < 5) {
+      throw Exception('Enter a complete delivery address');
+    }
+    final cleanPhone = phone.trim().replaceAll(RegExp(r'[\s-]'), '');
+    if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+      throw Exception('Enter a valid contact number');
+    }
+    if (!allowedPayments.contains(paymentMethod)) {
+      throw Exception('Choose a valid payment method');
+    }
+    final cleanRef = paymentRef.trim();
+    if (cleanRef.length > 50) throw Exception('Reference number too long');
+    if (paymentMethod == 'GCash' && cleanRef.isEmpty) {
+      throw Exception('Enter your GCash reference number');
+    }
+    if (paymentProofUrl.length > 1000) {
+      throw Exception('Proof image too large');
+    }
+    if (clientRequestId.trim().isEmpty) {
+      throw Exception('Missing request id. Please retry.');
+    }
+    // Idempotency: return existing order for this client request.
+    final existing = await _db
+        .collection('orders')
+        .where('clientRequestId', isEqualTo: clientRequestId.trim())
+        .where('userId', isEqualTo: userId)
+        .limit(1)
+        .get();
+    if (existing.docs.isNotEmpty) return existing.docs.first.id;
+
     final subtotal = calcSubtotal(items);
     final fee = calcDeliveryFee(subtotal);
-    final total = calcTotal(subtotal, fee, discount);
+    final safeDiscount = discount.clamp(0, subtotal + fee).toDouble();
+    final total = calcTotal(subtotal, fee, safeDiscount);
     final ref = _db.collection('orders').doc();
     final notifRef =
         _db.collection('users').doc(userId).collection('notifications').doc();
@@ -71,18 +129,22 @@ class OrderService {
           .toList(),
       'subtotal': subtotal,
       'deliveryFee': fee,
-      'discount': discount,
+      'discount': safeDiscount,
       'total': total,
       'status': 'pending',
-      'address': address,
+      'address': cleanAddress,
+      'phone': cleanPhone,
       'customerLat': customerLat,
       'customerLng': customerLng,
       'riderId': null,
       'riderLat': null,
       'riderLng': null,
       'paymentMethod': paymentMethod,
-      'notes': notes,
-      'clientRequestId': clientRequestId,
+      'paymentRef': cleanRef,
+      'paymentProofUrl': paymentProofUrl,
+      'paymentVerified': false,
+      'notes': notes.trim(),
+      'clientRequestId': clientRequestId.trim(),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -111,6 +173,10 @@ class OrderService {
     double? riderLat,
     double? riderLng,
   }) async {
+    if (!allowedTransitions.keys.contains(status) &&
+        !allowedTransitions.values.expand((e) => e).contains(status)) {
+      throw Exception('Unknown status: $status');
+    }
     final batch = _db.batch();
     final data = <String, dynamic>{
       'status': status,
@@ -125,6 +191,87 @@ class OrderService {
       {
         'title': 'Order $status',
         'body': 'Your order is now $status.',
+        'orderId': orderId,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+    );
+    await batch.commit();
+  }
+
+  /// Rider accepts an assigned order -> preparing.
+  Future<void> acceptAssignment({
+    required String orderId,
+    required String customerId,
+    required String riderId,
+  }) =>
+      changeStatus(
+        orderId: orderId,
+        userId: customerId,
+        status: 'preparing',
+        riderId: riderId,
+      );
+
+  /// Rider declines: release assignment back to pending so admin can reassign.
+  /// Allowed by rules (rider may update own riderId/status fields).
+  Future<void> declineAssignment({
+    required String orderId,
+    required String customerId,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_db.collection('orders').doc(orderId), {
+      'riderId': null,
+      'status': 'pending',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(
+      _db.collection('users').doc(customerId).collection('notifications').doc(),
+      {
+        'title': 'Order pending',
+        'body': 'Looking for another rider.',
+        'orderId': orderId,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+    );
+    await batch.commit();
+  }
+
+  /// Customer attaches a GCash proof after the order exists (base64 fallback
+  /// path). Allowed by rules only while the order is still pending.
+  Future<void> updatePaymentProof({
+    required String orderId,
+    required String paymentProofUrl,
+  }) async {
+    if (paymentProofUrl.length > 1000) {
+      throw Exception('Proof image too large');
+    }
+    await _db.collection('orders').doc(orderId).update({
+      'paymentProofUrl': paymentProofUrl,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Admin verifies (or rejects) a GCash/Maya payment.
+  /// Rejecting cancels the order so the customer can reorder.
+  Future<void> verifyPayment({
+    required String orderId,
+    required String customerId,
+    required bool verified,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_db.collection('orders').doc(orderId), {
+      if (verified) 'paymentVerified': true,
+      if (!verified) 'status': 'cancelled',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(
+      _db.collection('users').doc(customerId).collection('notifications').doc(),
+      {
+        'title': verified ? 'Payment verified' : 'Payment rejected',
+        'body': verified
+            ? 'Your payment was verified. Preparing your food.'
+            : 'Your payment proof was rejected. Please reorder with a valid receipt.',
         'orderId': orderId,
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),

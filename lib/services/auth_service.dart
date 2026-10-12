@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../config.dart';
 import '../firebase_options.dart';
 
 class AuthService {
@@ -48,12 +49,25 @@ class AuthService {
         rethrow;
       }
     } else {
-      final g = await GoogleSignIn().signIn();
+      // google_sign_in v6 only returns an idToken when serverClientId
+      // (the Web OAuth client ID) is set. Without it Firebase rejects
+      // the credential. The ID is also required alongside
+      // android/app/google-services.json + registered SHA-1.
+      final serverId = AppConfig.googleServerClientId;
+      final g = await GoogleSignIn(
+        serverClientId: serverId.isEmpty ? null : serverId,
+      ).signIn();
       if (g == null) {
         throw FirebaseAuthException(
             code: 'cancelled', message: 'Sign in cancelled');
       }
       final auth = await g.authentication;
+      if (auth.idToken == null) {
+        throw FirebaseAuthException(
+          code: 'missing-id-token',
+          message: 'Google sign-in misconfigured (idToken null)',
+        );
+      }
       final cred = GoogleAuthProvider.credential(
         accessToken: auth.accessToken,
         idToken: auth.idToken,

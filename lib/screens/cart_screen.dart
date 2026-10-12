@@ -75,7 +75,7 @@ class _CartScreenState extends State<CartScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF3E0),
+                color: AppColors.warningBg,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Row(
@@ -90,7 +90,7 @@ class _CartScreenState extends State<CartScreen> {
                         Text('Free delivery for orders',
                             style: TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 14)),
-                        Text('above PHP 300.00!',
+                        Text('above ${formatPeso(500)}!',
                             style: TextStyle(
                                 fontSize: 12, color: AppColors.muted)),
                       ],

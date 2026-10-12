@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/location_service.dart';
+import '../services/notification_service.dart';
 import '../services/order_service.dart';
 import '../models/order.dart';
 import '../theme/app_theme.dart';
@@ -9,6 +11,7 @@ import '../theme/motion.dart';
 import '../utils/formatters.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
+import 'review_sheet.dart';
 
 class TrackingScreen extends StatefulWidget {
   final String orderId;
@@ -20,6 +23,8 @@ class TrackingScreen extends StatefulWidget {
 class _TrackingScreenState extends State<TrackingScreen> {
   final _loc = LocationService();
   RouteResult? _route;
+  LatLng? _routedFrom;
+  String? _lastStatus;
 
   static const _steps = ['pending', 'preparing', 'on_the_way', 'delivered'];
   static const _labels = ['Confirmed', 'Preparing', 'On the way', 'Delivered'];
@@ -34,6 +39,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     switch (status) {
       case 'pending':
         return 'Your order is confirmed!';
+      case 'assigned':
+        return 'A rider is assigned!';
       case 'preparing':
         return 'Your food is being prepared!';
       case 'on_the_way':
@@ -48,6 +55,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 
   void _details(Order o) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final canRate = o.status == 'delivered' && uid.isNotEmpty;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -75,6 +84,24 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     Text(formatPeso(it.price * it.qty),
                         style: const TextStyle(
                             fontWeight: FontWeight.w700)),
+                    if (canRate)
+                      IconButton(
+                        icon: const Icon(Icons.star_outline_rounded,
+                            color: AppColors.accent),
+                        tooltip: 'Rate this item',
+                        onPressed: () {
+                          Navigator.pop(context);
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (_) => ReviewSheet(
+                              orderId: o.id,
+                              userId: uid,
+                              foodId: it.foodId,
+                            ),
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -126,14 +153,29 @@ class _TrackingScreenState extends State<TrackingScreen> {
           final dest = o.customerLat != null && o.customerLng != null
               ? LatLng(o.customerLat!, o.customerLng!)
               : const LatLng(14.5995, 120.9842);
-          if (rider != null && _route == null) {
+          // Local ping when the status changes while tracking.
+          if (_lastStatus != null && _lastStatus != o.status) {
+            try {
+              NotificationService()
+                  .showLocal('Order ${o.status}', _headline(o.status));
+            } catch (_) {}
+          }
+          _lastStatus = o.status;
+          // Refresh the route when the rider has moved on.
+          if (rider != null &&
+              (_route == null ||
+                  _routedFrom == null ||
+                  const Distance()(_routedFrom!, rider) > 300)) {
+            _routedFrom = rider;
             _loc.route(rider, dest).then((r) {
               if (mounted) setState(() => _route = r);
             });
           }
           final idx = o.status == 'cancelled'
               ? -1
-              : _steps.indexOf(o.status).clamp(0, 3);
+              : o.status == 'assigned'
+                  ? 0
+                  : _steps.indexOf(o.status).clamp(0, 3);
           return ContentWidth(
             child: Column(
               children: [
@@ -184,6 +226,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
                         ),
                         const SizedBox(height: 6),
                         StatusChip(o.status),
+                        if ((o.paymentMethod == 'GCash' ||
+                                o.paymentMethod == 'Maya') &&
+                            !o.paymentVerified &&
+                            (o.status == 'pending' ||
+                                o.status == 'assigned'))
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Text(
+                              'Waiting for payment verification. Preparation starts after admin confirms.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 12, color: AppColors.muted),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -289,7 +345,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                               Polyline(
                                   points: _route!.points,
                                   strokeWidth: 4,
-                                  color: const Color(0xFFFF5722)),
+                                  color: AppColors.primary),
                             ],
                           ),
                         MarkerLayer(
@@ -297,14 +353,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
                             Marker(
                               point: dest,
                               child: const Icon(Icons.location_pin,
-                                  color: Color(0xFFC62828), size: 36),
+                                  color: AppColors.error, size: 36),
                             ),
                             if (rider != null)
                               Marker(
                                 point: rider,
                                 child: const Icon(
                                     Icons.delivery_dining_rounded,
-                                    color: Color(0xFFFF5722),
+                                    color: AppColors.primary,
                                     size: 36),
                               ),
                           ],
