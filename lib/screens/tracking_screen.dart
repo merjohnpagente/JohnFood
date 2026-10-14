@@ -22,12 +22,21 @@ class TrackingScreen extends StatefulWidget {
 
 class _TrackingScreenState extends State<TrackingScreen> {
   final _loc = LocationService();
+  final _map = MapController();
   RouteResult? _route;
   LatLng? _routedFrom;
+  LatLng? _lastRider;
   String? _lastStatus;
+  bool _follow = false;
 
   static const _steps = ['pending', 'preparing', 'on_the_way', 'delivered'];
   static const _labels = ['Confirmed', 'Preparing', 'On the way', 'Delivered'];
+
+  /// Human-readable remaining distance.
+  static String _meters(double m) {
+    if (m < 1000) return '${m.round()} m away';
+    return '${(m / 1000).toStringAsFixed(1)} km away';
+  }
   static const _icons = [
     Icons.receipt_rounded,
     Icons.restaurant_rounded,
@@ -171,6 +180,23 @@ class _TrackingScreenState extends State<TrackingScreen> {
               if (mounted) setState(() => _route = r);
             });
           }
+          // Keep the rider marker centred while following.
+          if (_follow && rider != null) {
+            final moved = _lastRider == null ||
+                const Distance()(_lastRider!, rider) > 15;
+            if (moved) {
+              _lastRider = rider;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _map.move(rider, 15.5);
+              });
+            }
+          }
+          final liveRider = rider != null &&
+              (o.status == 'assigned' ||
+                  o.status == 'preparing' ||
+                  o.status == 'on_the_way');
+          final remainingMeters =
+              rider == null ? null : const Distance()(rider, dest);
           final idx = o.status == 'cancelled'
               ? -1
               : o.status == 'assigned'
@@ -226,6 +252,65 @@ class _TrackingScreenState extends State<TrackingScreen> {
                         ),
                         const SizedBox(height: 6),
                         StatusChip(o.status),
+                        if (liveRider && remainingMeters != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.near_me_rounded,
+                                  size: 14, color: AppColors.muted),
+                              const SizedBox(width: 4),
+                              Text(
+                                _meters(remainingMeters),
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.muted),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (liveRider && rider == null) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Waiting for your rider to share location.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.muted),
+                          ),
+                        ],
+                        if (liveRider) ...[
+                          const SizedBox(height: 4),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() => _follow = !_follow);
+                              if (_follow && rider != null) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  if (mounted) _map.move(rider, 15.5);
+                                });
+                              }
+                            },
+                            icon: Icon(
+                              _follow
+                                  ? Icons.my_location_rounded
+                                  : Icons.location_searching_rounded,
+                              size: 16,
+                              color: _follow
+                                  ? AppColors.primary
+                                  : AppColors.muted,
+                            ),
+                            label: Text(
+                              _follow ? 'Following rider' : 'Follow rider',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _follow
+                                    ? AppColors.primary
+                                    : AppColors.muted,
+                              ),
+                            ),
+                          ),
+                        ],
                         if ((o.paymentMethod == 'GCash' ||
                                 o.paymentMethod == 'Maya') &&
                             !o.paymentVerified &&
@@ -328,6 +413,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       topRight: Radius.circular(20),
                     ),
                     child: FlutterMap(
+                      mapController: _map,
                       options: MapOptions(
                         initialCenter: rider ?? dest,
                         initialZoom: 14,

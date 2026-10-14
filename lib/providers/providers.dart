@@ -31,35 +31,66 @@ class OrdersProvider extends ChangeNotifier {
 class AdminProvider extends ChangeNotifier {
   bool loading = false;
   int todayOrders = 0;
-  double todayRevenue = 0;
   int activeOrders = 0;
+  double todayRevenue = 0;
+  double monthRevenue = 0;
+  double yearRevenue = 0;
+  double _overall = 0;
+
+  double get overallRevenue => _overall;
+
+  /// Safe share of the overall total (0 when there is nothing to divide by).
+  double shareOf(double value) =>
+      _overall <= 0 ? 0 : (value / _overall).clamp(0, 1).toDouble();
 
   Future<void> loadStats() async {
     loading = true;
     notifyListeners();
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day);
-    final snap = await FirebaseFirestore.instance
-        .collection('orders')
-        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .get();
-    todayOrders = snap.docs.length;
-    double rev = 0;
-    int active = 0;
-    for (final d in snap.docs) {
-      final m = d.data();
-      final s = (m['status'] ?? '') as String;
-      // Cancelled orders earn nothing — keep revenue honest.
-      if (s != 'cancelled') {
-        rev += ((m['total'] ?? 0) as num).toDouble();
+    try {
+      // One fetch, all buckets computed locally. Cancelled orders earn
+      // nothing and are excluded from every revenue figure.
+      final snap = await FirebaseFirestore.instance
+          .collection('orders')
+          .orderBy('createdAt', descending: true)
+          .limit(5000)
+          .get();
+      final now = DateTime.now();
+      final dayStart = DateTime(now.year, now.month, now.day);
+      final monthStart = DateTime(now.year, now.month);
+      final yearStart = DateTime(now.year);
+      int tOrders = 0;
+      double tRev = 0, mRev = 0, yRev = 0, allRev = 0;
+      int active = 0;
+      for (final d in snap.docs) {
+        final m = d.data();
+        final s = (m['status'] ?? '') as String;
+        if (s == 'pending' ||
+            s == 'assigned' ||
+            s == 'preparing' ||
+            s == 'on_the_way') {
+          active++;
+        }
+        if (s == 'cancelled') continue;
+        final total = ((m['total'] ?? 0) as num).toDouble();
+        final created =
+            (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        allRev += total;
+        if (!created.isBefore(yearStart)) yRev += total;
+        if (!created.isBefore(monthStart)) mRev += total;
+        if (!created.isBefore(dayStart)) {
+          tRev += total;
+          tOrders++;
+        }
       }
-      if (s == 'pending' ||
-          s == 'assigned' ||
-          s == 'preparing' ||
-          s == 'on_the_way') active++;
+      todayOrders = tOrders;
+      todayRevenue = tRev;
+      monthRevenue = mRev;
+      yearRevenue = yRev;
+      _overall = allRev;
+      activeOrders = active;
+    } catch (_) {
+      // Keep last values on offline; dashboard shows cached numbers.
     }
-    todayRevenue = rev;
-    activeOrders = active;
     loading = false;
     notifyListeners();
   }

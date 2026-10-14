@@ -32,6 +32,7 @@ class Order {
   final String status;
   final String address;
   final String phone;
+  final String customerName;
   final double? customerLat;
   final double? customerLng;
   final String? riderId;
@@ -55,6 +56,7 @@ class Order {
     required this.status,
     required this.address,
     required this.phone,
+    this.customerName = '',
     this.customerLat,
     this.customerLng,
     this.riderId,
@@ -83,6 +85,7 @@ class Order {
       status: (m['status'] ?? 'pending') as String,
       address: (m['address'] ?? '') as String,
       phone: (m['phone'] ?? '') as String,
+      customerName: (m['customerName'] ?? '') as String,
       customerLat: (m['customerLat'] as num?)?.toDouble(),
       customerLng: (m['customerLng'] as num?)?.toDouble(),
       riderId: m['riderId'] as String?,

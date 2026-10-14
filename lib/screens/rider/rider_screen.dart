@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/order_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/ui_kit.dart';
@@ -31,6 +32,25 @@ class _RiderScreenState extends State<RiderScreen> {
     'delivered',
     'cancelled',
   ];
+
+  String _short(String id) =>
+      id.length > 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
+
+  /// Sort rank: work in progress first, finished orders last.
+  int _rank(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+    switch ((d.data()['status'] ?? '') as String) {
+      case 'assigned':
+        return 0;
+      case 'preparing':
+        return 1;
+      case 'on_the_way':
+        return 2;
+      case 'delivered':
+        return 4;
+      default:
+        return 3;
+    }
+  }
 
   @override
   void dispose() {
@@ -133,7 +153,8 @@ class _RiderScreenState extends State<RiderScreen> {
     }
   }
 
-  Future<void> _accept(String orderId, String customerId, String riderId) async {
+  Future<void> _accept(
+      String orderId, String customerId, String riderId) async {
     setState(() => _busy = true);
     try {
       await OrderService().acceptAssignment(
@@ -141,6 +162,8 @@ class _RiderScreenState extends State<RiderScreen> {
         customerId: customerId,
         riderId: riderId,
       );
+      // Start sharing location right away so the customer sees the rider.
+      if (!_autoTrack) await _toggleAuto(true);
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Order accepted')));
@@ -149,6 +172,30 @@ class _RiderScreenState extends State<RiderScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Accept failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deliver(
+      String orderId, String customerId, String riderId) async {
+    setState(() => _busy = true);
+    try {
+      await OrderService().changeStatus(
+        orderId: orderId,
+        userId: customerId,
+        status: 'delivered',
+        riderId: riderId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Marked as delivered')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Update failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -280,82 +327,219 @@ class _RiderScreenState extends State<RiderScreen> {
                   icon: Icons.delivery_dining_outlined,
                   message: 'No assigned orders.');
             }
+            // New work first: active statuses above finished ones, then
+            // newest first inside each group.
+            final sorted = [...docs]..sort((a, b) {
+                final rank = _rank(a) .compareTo(_rank(b));
+                if (rank != 0) return rank;
+                return (b.data()['createdAt'] as Timestamp?)
+                        ?.compareTo(
+                            a.data()['createdAt'] as Timestamp?) ??
+                    0;
+              });
             return ListView.builder(
-              itemCount: docs.length,
+              padding: const EdgeInsets.all(16),
+              itemCount: sorted.length,
               itemBuilder: (_, i) {
-                final d = docs[i];
+                final d = sorted[i];
                 final m = d.data();
                 final status = (m['status'] ?? 'pending') as String;
                 final customerId = (m['userId'] ?? '') as String;
                 final phone = (m['phone'] ?? '') as String;
+                final customerName =
+                    (m['customerName'] ?? '').toString().trim();
                 final isAssigned = status == 'assigned';
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                  'Order ${d.id.substring(0, d.id.length > 6 ? 6 : d.id.length)} - ${formatPeso(((m['total'] ?? 0) as num).toDouble())}',
+                final items = ((m['items'] ?? []) as List)
+                    .map((e) => Map<String, dynamic>.from(e as Map))
+                    .toList();
+                final payable = m['paymentMethod'] == 'GCash' ||
+                    m['paymentMethod'] == 'Maya';
+                return Entrance(
+                  delay:
+                      Duration(milliseconds: (i * 50).clamp(0, 300)),
+                  child: Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                    'Order ${_short(d.id)}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              Text(
+                                  formatPeso(((m['total'] ?? 0) as num)
+                                      .toDouble()),
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w700)),
-                            ),
-                            StatusChip(status),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text('${m['address'] ?? ''}',
-                            style: const TextStyle(fontSize: 13)),
-                        if (phone.isNotEmpty)
-                          Text('Phone: $phone',
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        if (isAssigned)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _accept(d.id, customerId, uid),
-                                  child: const Text('Accept'),
-                                ),
-                              ),
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.primary)),
                               const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _decline(d.id, customerId),
-                                  child: const Text('Decline'),
-                                ),
-                              ),
+                              StatusChip(status),
                             ],
-                          )
-                        else
+                          ),
+                          if (customerName.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.person_outline_rounded,
+                                    size: 16, color: AppColors.muted),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(customerName,
+                                      style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight:
+                                              FontWeight.w600)),
+                                ),
+                              ],
+                              if (payable)
+                                Text(
+                                  m['paymentVerified'] == true
+                                      ? 'Paid'
+                                      : 'Verify first',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: m['paymentVerified'] == true
+                                        ? AppColors.success
+                                        : AppColors.warning,
+                                  ),
+                                ),
+                            ],
+                          ],
+                          const SizedBox(height: 4),
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              IconButton(
-                                icon:
-                                    const Icon(Icons.my_location_rounded),
-                                tooltip: 'Share location',
-                                onPressed: () => _share(d.id),
-                              ),
+                              const Icon(Icons.location_on_outlined,
+                                  size: 16, color: AppColors.muted),
                               const SizedBox(width: 4),
                               Expanded(
-                                child: _statusDropdown(
-                                  status,
-                                  (v) => _updateStatus(
-                                      d.id, customerId, uid, v),
-                                ),
+                                child: Text('${m['address'] ?? ''}',
+                                    style: const TextStyle(fontSize: 13)),
                               ),
                             ],
                           ),
-                      ],
+                          if (phone.isNotEmpty)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.phone_outlined,
+                                    size: 16, color: AppColors.muted),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(phone,
+                                      style: const TextStyle(fontSize: 13)),
+                                ),
+                              ],
+                            ),
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.canvas,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${items.length} item(s)',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.muted),
+                                ),
+                                const SizedBox(height: 4),
+                                for (final it in items.take(5))
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        bottom: 2),
+                                    child: Text(
+                                      '${(it['qty'] ?? 1)}x ${it['name'] ?? ''}${((it['option'] ?? '') as String).isEmpty ? '' : ' (${it['option']})'}',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                if (items.length > 5)
+                                  Text('+${items.length - 5} more',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.muted)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (isAssigned)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _accept(
+                                            d.id, customerId, uid),
+                                    child: const Text('Accept order'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _decline(
+                                            d.id, customerId),
+                                    child: const Text('Decline'),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.tonal(
+                                    onPressed: () => _share(d.id),
+                                    child: const Text('Share location'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _statusDropdown(
+                                    status,
+                                    (v) => _updateStatus(
+                                        d.id, customerId, uid, v),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (status == 'on_the_way') ...[
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _deliver(
+                                          d.id, customerId, uid),
+                                  icon: const Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 18,
+                                      color: AppColors.onPrimary),
+                                  label: const Text('Mark as delivered'),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 );

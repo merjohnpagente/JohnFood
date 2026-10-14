@@ -40,25 +40,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Expanded(
                       child: Entrance(
-                          child: _card('Today orders',
-                              '${admin.todayOrders}', Icons.receipt_rounded))),
+                          child: _statCard(
+                              'Today orders',
+                              admin.todayOrders.toDouble(),
+                              Icons.receipt_rounded))),
                   const SizedBox(width: 12),
                   Expanded(
                       child: Entrance(
                           delay: const Duration(milliseconds: 60),
-                          child: _card(
-                              'Revenue',
-                              formatPeso(admin.todayRevenue),
-                              Icons.payments_rounded))),
+                          child: _statCard(
+                              'Today revenue',
+                              admin.todayRevenue,
+                              Icons.payments_rounded,
+                              isMoney: true))),
                   const SizedBox(width: 12),
                   Expanded(
                       child: Entrance(
                           delay: const Duration(milliseconds: 120),
-                          child: _card(
+                          child: _statCard(
                               'Active',
-                              '${admin.activeOrders}',
+                              admin.activeOrders.toDouble(),
                               Icons.delivery_dining_rounded))),
                 ],
+              ),
+              const SizedBox(height: 20),
+              const SectionHeader(title: 'Revenue'),
+              const SizedBox(height: 8),
+              Entrance(
+                delay: const Duration(milliseconds: 180),
+                child: _revenueCard(
+                  'This Month',
+                  admin.monthRevenue,
+                  Icons.calendar_month_rounded,
+                  share: admin.shareOf(admin.monthRevenue),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Entrance(
+                delay: const Duration(milliseconds: 240),
+                child: _revenueCard(
+                  'This Year',
+                  admin.yearRevenue,
+                  Icons.date_range_rounded,
+                  share: admin.shareOf(admin.yearRevenue),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Entrance(
+                delay: const Duration(milliseconds: 300),
+                child: _revenueCard(
+                  'Overall',
+                  admin.overallRevenue,
+                  Icons.account_balance_wallet_rounded,
+                ),
               ),
               const SizedBox(height: 20),
               const SectionHeader(title: 'Top foods'),
@@ -188,7 +222,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _card(String label, String value, IconData icon) => Card(
+  /// Small stat tile. Both money and counts animate from zero on load.
+  Widget _statCard(
+    String label,
+    double value,
+    IconData icon, {
+    bool isMoney = false,
+  }) =>
+      Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -210,21 +251,132 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Radius.circular(12),
                   ),
                 ),
-                child: Icon(icon,
-                    color: Colors.white, size: 20),
+                child: Icon(icon, color: AppColors.onPrimary, size: 20),
               ),
               const SizedBox(height: 10),
-              Text(value,
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: value),
+                duration: const Duration(milliseconds: 800),
+                curve: Curves.easeOutCubic,
+                builder: (_, v, __) => Text(
+                  isMoney ? formatPeso(v) : v.round().toString(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3)),
+                      letterSpacing: -0.3),
+                ),
+              ),
               const SizedBox(height: 2),
               Text(label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       color: AppColors.muted, fontSize: 12)),
             ],
           ),
         ),
       );
+
+  /// Full-width revenue row: animated count-up plus a share bar
+  /// showing how much of the overall total this bucket represents.
+  Widget _revenueCard(
+    String label,
+    double value,
+    IconData icon, {
+    double share = 0,
+  }) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primary,
+                      AppColors.primaryDark
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.all(
+                    Radius.circular(14),
+                  ),
+                ),
+                child: Icon(icon, color: AppColors.onPrimary, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: const TextStyle(
+                            color: AppColors.muted, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    _CountUp(
+                      value: value,
+                      style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3),
+                    ),
+                    if (share > 0) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: share.clamp(0, 1)),
+                          duration: const Duration(milliseconds: 900),
+                          curve: Curves.easeOutCubic,
+                          builder: (_, v, __) => LinearProgressIndicator(
+                            value: v,
+                            minHeight: 6,
+                            backgroundColor: AppColors.shimmer,
+                            valueColor:
+                                const AlwaysStoppedAnimation(AppColors.primary),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (share > 0)
+                Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Text(
+                    '${(share * 100).toStringAsFixed(share < 0.1 ? 1 : 0)}%',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.muted),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+}
+
+/// Animated count-up number for revenue figures.
+class _CountUp extends StatelessWidget {
+  final double value;
+  final TextStyle style;
+  const _CountUp({required this.value, required this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: value),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (_, v, __) => Text(formatPeso(v), style: style),
+    );
+  }
 }

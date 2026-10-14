@@ -6,6 +6,7 @@ class AppColors {
   static const primary = Color(0xFFFF5722);
   static const primaryDark = Color(0xFFE64A19);
   static const primaryLight = Color(0xFFFF8A65);
+  static const onPrimary = Colors.white;
   static const ink = Color(0xFF1F1B18);
   static const inkSecondary = Color(0xFF4A4440);
   static const muted = Color(0xFF8A817B);

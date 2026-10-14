@@ -126,12 +126,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _placing = true);
     try {
       final cart = context.read<CartProvider>();
-      final uid = context.read<AuthProvider>().user!.uid;
+      final authUser = context.read<AuthProvider>().user;
+      final uid = authUser!.uid;
       final id = await OrderService().placeOrder(
         userId: uid,
         items: cart.items,
         address: _address.text.trim(),
         phone: _phone.text.trim(),
+        customerName: authUser.name,
         paymentMethod: _payment,
         notes: _notes.text.trim(),
         discount: cart.discount,

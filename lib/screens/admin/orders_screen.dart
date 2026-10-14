@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,12 @@ class AdminOrdersScreen extends StatefulWidget {
 class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   String _filter = '';
   Map<String, String?> _riderPick = {};
+
+  /// One rider subscription for the whole screen. Creating the stream inside
+  /// each order row spawned one Firestore listener per row.
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _ridersSub;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _riders = [];
+
   static const _statuses = [
     '',
     'pending',
@@ -37,9 +44,51 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     'Cancelled'
   ];
 
+  /// Statuses that mean the rider is still working on the order.
+  static const _activeStatuses = {
+    'assigned',
+    'preparing',
+    'on_the_way',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _ridersSub = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'rider')
+        .limit(50)
+        .snapshots()
+        .listen((s) {
+      if (mounted) setState(() => _riders = s.docs);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ridersSub?.cancel();
+    super.dispose();
+  }
+
   String _label(String s) {
     final i = _statuses.indexOf(s);
     return i < 0 ? s : _labels[i];
+  }
+
+  String _short(String id) =>
+      id.length > 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
+
+  /// How many active orders each rider is carrying (from the loaded page).
+  Map<String, int> _busyCounts(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
+    final counts = <String, int>{};
+    for (final d in docs) {
+      final m = d.data();
+      final r = (m['riderId'] as String?) ?? '';
+      final s = (m['status'] ?? '') as String;
+      if (r.isEmpty || !_activeStatuses.contains(s)) continue;
+      counts[r] = (counts[r] ?? 0) + 1;
+    }
+    return counts;
   }
 
   @override
@@ -79,13 +128,13 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                     onSelected: (_) =>
                         setState(() => _filter = s),
                     selectedColor: AppColors.primary,
-                    backgroundColor: Colors.white,
+                    backgroundColor: AppColors.surface,
                     side: BorderSide.none,
                     shape: const StadiumBorder(),
                     labelStyle: TextStyle(
                       fontWeight: FontWeight.w600,
                       color:
-                          on ? Colors.white : AppColors.ink,
+                          on ? AppColors.onPrimary : AppColors.ink,
                     ),
                   );
                 },
@@ -112,6 +161,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                         icon: Icons.receipt_long_outlined,
                         message: 'No orders.');
                   }
+                  final busy = _busyCounts(docs);
                   final wide = context.isDesktop;
                   if (wide) {
                     return SingleChildScrollView(
@@ -139,7 +189,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                               DataCell(StatusChip(
                                   (d.data()['status'] ?? '')
                                       as String)),
-                              DataCell(_actions(d)),
+                              DataCell(_actions(d, busy)),
                             ]),
                         ],
                       ),
@@ -193,7 +243,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                                             color: AppColors
                                                 .muted)),
                                     const SizedBox(height: 12),
-                                    _actions(d),
+                                    _actions(d, busy),
                                   ],
                                 ),
                               ),
@@ -267,7 +317,10 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     );
   }
 
-  Widget _actions(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+  Widget _actions(
+    QueryDocumentSnapshot<Map<String, dynamic>> d,
+    Map<String, int> busy,
+  ) {
     final m = d.data();
     final uid = (m['userId'] ?? '') as String;
     final current = (m['status'] ?? '') as String;
@@ -340,61 +393,29 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
         if (currentRider.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text('Rider: ${currentRider.substring(0, currentRider.length > 6 ? 6 : currentRider.length)}',
-                style: const TextStyle(fontSize: 13, color: AppColors.muted)),
-          ),
-        // Rider assignment: admin picks rider then assigns.
-        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .where('role', isEqualTo: 'rider')
-              .limit(20)
-              .snapshots(),
-          builder: (context, snap) {
-            final riders = snap.data?.docs ?? [];
-            if (riders.isEmpty) {
-              return const Text('No riders. Add one in Users tab.',
-                  style: TextStyle(fontSize: 13, color: AppColors.muted));
-            }
-            final picked = _riderPick[d.id] ?? currentRider;
-            return Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
               children: [
-                DropdownButton<String>(
-                  value: riders.any((r) => r.id == picked) ? picked : null,
-                  hint: const Text('Select rider',
-                      style: TextStyle(fontSize: 13)),
-                  items: [
-                    for (final r in riders)
-                      DropdownMenuItem(
-                        value: r.id,
-                        child: Text(
-                          '${(r.data()['name'] ?? 'Rider')} (${r.id.substring(0, r.id.length > 4 ? 4 : r.id.length)})',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _riderPick[d.id] = v),
+                Expanded(
+                  child: Text(
+                    'Rider: ${_riderName(currentRider)}',
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.inkSecondary),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton.tonal(
-                  onPressed: (_riderPick[d.id] == null ||
-                          _riderPick[d.id]!.isEmpty)
-                      ? null
-                      : () => OrderService().changeStatus(
-                            orderId: d.id,
-                            userId: uid,
-                            status: 'assigned',
-                            riderId: _riderPick[d.id],
-                          ),
-                  child: const Text('Assign',
+                TextButton(
+                  onPressed: () => _unassign(d.id, uid),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Unassign',
                       style: TextStyle(fontSize: 13)),
                 ),
               ],
-            );
-          },
-        ),
+            ),
+          ),
+        _assignRow(d, uid, currentRider, busy),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -422,6 +443,135 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
         ),
       ],
     );
+  }
+
+  /// Rider picker shared by every row. Shows who is free and who is
+  /// already carrying orders so the admin can assign deliberately.
+  Widget _assignRow(
+    QueryDocumentSnapshot<Map<String, dynamic>> d,
+    String uid,
+    String currentRider,
+    Map<String, int> busy,
+  ) {
+    if (_riders.isEmpty) {
+      return const Text('No riders yet. Add one in the Users tab.',
+          style: TextStyle(fontSize: 13, color: AppColors.muted));
+    }
+    final picked = _riderPick[d.id] ?? currentRider;
+    final pickedBusy = busy[picked] ?? 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: _riders.any((r) => r.id == picked) ? picked : null,
+                hint: const Text('Select rider',
+                    style: TextStyle(fontSize: 13)),
+                items: [
+                  for (final r in _riders)
+                    () {
+                      final rid = r.id;
+                      final name = '${r.data()['name'] ?? 'Rider'}';
+                      final n = busy[rid] ?? 0;
+                      return DropdownMenuItem(
+                        value: rid,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 13)),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              n == 0 ? 'Free' : 'Busy ($n)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: n == 0
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }(),
+                ],
+                onChanged: (v) => setState(() => _riderPick[d.id] = v),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: (picked.isEmpty || picked == currentRider)
+                  ? null
+                  : () => OrderService().changeStatus(
+                        orderId: d.id,
+                        userId: uid,
+                        status: 'assigned',
+                        riderId: picked,
+                      ),
+              child: Text(currentRider.isEmpty ? 'Assign' : 'Reassign',
+                  style: const TextStyle(fontSize: 13)),
+            ),
+          ],
+        ),
+        if (picked.isNotEmpty && pickedBusy > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              pickedBusy > 1
+                  ? 'This rider already has $pickedBusy active orders.'
+                  : 'This rider has 1 active order.',
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.warning),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _riderName(String riderId) {
+    for (final r in _riders) {
+      if (r.id == riderId) return '${r.data()['name'] ?? 'Rider'}';
+    }
+    return 'Unknown';
+  }
+
+  Future<void> _unassign(String orderId, String customerId) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Unassign rider?'),
+        content: const Text(
+            'The order goes back to pending so you can pick another rider.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Unassign'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await OrderService()
+          .declineAssignment(orderId: orderId, customerId: customerId);
+      _riderPick.remove(orderId);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not unassign. Try again.')),
+      );
+    }
   }
 
   Widget _proofView(String url, String orderId) {
