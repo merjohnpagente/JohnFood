@@ -24,16 +24,33 @@ jobs:
           node-version: '20'
 
       - name: Write service account
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret is missing. Copy the whole"
+            echo "service account JSON from the Firebase console > Project"
+            echo "settings > Service accounts into the repository secret."
+            exit 1
+          fi
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+          # Catch a truncated or mis-pasted secret early, with a clear message.
+          node -e "JSON.parse(require('fs').readFileSync('$RUNNER_TEMP/sa.json','utf8'))" \
+            || { echo "FIREBASE_SERVICE_ACCOUNT is not valid JSON."; exit 1; }
+          node -e "const k=require('$RUNNER_TEMP/sa.json'); console.log('project_id:', k.project_id, '| client_email:', k.client_email);"
 
       - name: Deploy Firestore rules and indexes
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
           set -o pipefail
+          if [ -z "${FIREBASE_PROJECT_ID:-}" ]; then
+            echo "FIREBASE_PROJECT_ID secret is missing."
+            exit 1
+          fi
+          echo "deploying to project: $FIREBASE_PROJECT_ID"
           npx --yes firebase-tools@latest deploy \
             --only firestore \
-            --project "${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --project "$FIREBASE_PROJECT_ID" \
             --non-interactive 2>&1 | tee /tmp/deploy.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" != "0" ]; then
