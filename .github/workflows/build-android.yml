@@ -97,7 +97,14 @@ jobs:
         run: dart run flutter_launcher_icons
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos
+        run: |
+          flutter analyze --no-fatal-infos --machine > /tmp/a.machine 2>&1 || true
+          # Emit each error as a GitHub annotation so it is readable from the
+          # run page and the checks API without authenticated log access.
+          while IFS= read -r line; do
+            echo "::error::$line"
+          done < <(grep "^ERROR" /tmp/a.machine || true)
+          grep "^ERROR" /tmp/a.machine > /dev/null 2>&1 && exit 1 || exit 0
 
       - name: Test
         run: flutter test
