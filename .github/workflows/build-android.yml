@@ -120,10 +120,13 @@ jobs:
             2>&1 | tee /tmp/apk-build.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" != "0" ]; then
-            echo "--- build errors ---"
-            grep -iE "error|failed|exception|could not|unable" /tmp/apk-build.log | head -30 | while IFS= read -r l; do
-              echo "::error::$l"
-            done
+            {
+              echo "## APK build output"
+              echo '```'
+              tail -60 /tmp/apk-build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=APK build failed::see the step summary for the full log"
             exit "$rc"
           fi
 
