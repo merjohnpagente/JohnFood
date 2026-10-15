@@ -54,11 +54,19 @@ jobs:
             --non-interactive 2>&1 | tee /tmp/deploy.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" != "0" ]; then
-            # Emit every error line as a GitHub annotation. These show on the
-            # run page and in the checks API without any authenticated call.
-            grep -iE "error|denied|invalid|failed|exception" /tmp/deploy.log \
-              | head -12 | while IFS= read -r line; do
-                echo "::error file=firestore.rules,title=Firestore deploy::${line}"
+            # Always surface something. A blank annotation list tells us
+            # nothing, so emit the tail of the log verbatim if the keyword
+            # filter came up empty.
+            emitted=0
+            while IFS= read -r line; do
+              emitted=$((emitted + 1))
+              echo "::error file=firestore.rules,title=Firestore deploy::${line:0:200}"
+            done < <(grep -iE "error|denied|invalid|failed|exception|rules" /tmp/deploy.log | head -10)
+            if [ "$emitted" = "0" ]; then
+              echo "::error file=firestore.rules,title=Firestore deploy::exit $rc, no keyword matched in log"
+              tail -12 /tmp/deploy.log | while IFS= read -r line; do
+                echo "::error file=firestore.rules,title=Firestore deploy::${line:0:200}"
               done
+            fi
             exit "$rc"
           fi
