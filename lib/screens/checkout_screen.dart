@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/merchant_settings.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../services/image_service.dart';
 import '../services/location_service.dart';
 import '../services/order_service.dart';
+import '../services/payment_service.dart';
+import '../services/promo_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_mapper.dart';
 import '../utils/formatters.dart';
@@ -35,8 +38,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _locLoading = false;
   List<int>? _proofBytes;
   String _proofName = 'receipt.jpg';
+  MerchantSettings? _merchant;
 
   bool get _needsProof => _payment == 'GCash' || _payment == 'Maya';
+
+  /// Merchant wallet for the selected method, shown before the customer
+  /// transfers so nobody screenshots a blank number.
+  String get _wallet => _merchant?.walletFor(_payment) ?? '';
+
+  String get _paymentHint {
+    if (!_needsProof) {
+      return 'Pay the rider in cash when the order arrives.';
+    }
+    final w = _wallet;
+    if (w.isEmpty) {
+      return 'This method is unavailable right now. Please pick another.';
+    }
+    return 'Send the exact amount to $w, then enter the reference '
+        'number and attach the screenshot.';
+  }
 
   @override
   void initState() {
@@ -44,14 +64,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _clientRequestId =
         '${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().toString()}';
     _loadPreferredPayment();
+    _loadMerchant();
+  }
+
+  Future<void> _loadMerchant() async {
+    try {
+      final m = await PaymentService().load();
+      if (mounted) setState(() => _merchant = m);
+    } catch (_) {
+      // Offline or not configured: the hint below explains the state.
+    }
   }
 
   Future<void> _loadPreferredPayment() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString('johnfoods_payment_v1');
-      const known = ["Cash on delivery", "GCash", "Maya", "Card"];
-      if (saved != null && known.contains(saved) && mounted) {
+      if (saved != null &&
+          OrderService.allowedPayments.contains(saved) &&
+          mounted) {
         setState(() => _payment = saved);
       }
     } catch (_) {}
@@ -117,17 +148,52 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _place() async {
     if (_placed || !_form.currentState!.validate()) return;
-    if (_needsProof && _proofBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Attach your payment screenshot')),
-      );
-      return;
+    if (_needsProof) {
+      if (_wallet.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('$_payment is unavailable. Pick another method.')),
+        );
+        return;
+      }
+      if (_proofBytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Attach your payment screenshot')),
+        );
+        return;
+      }
     }
     setState(() => _placing = true);
     try {
       final cart = context.read<CartProvider>();
       final authUser = context.read<AuthProvider>().user;
       final uid = authUser!.uid;
+      // Re-validate the promo against the live cart. A code can expire or
+      // hit its usage cap between the cart screen and checkout.
+      var discount = cart.discount;
+      var promoCode = cart.promoCode;
+      if (promoCode.isNotEmpty) {
+        final fresh = await PromoService().preview(
+          promoCode,
+          cart.subtotal,
+          deliveryFee: cart.deliveryFee,
+        );
+        if (fresh <= 0) {
+          cart.setDiscount(0, '');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(
+                      '$promoCode is no longer valid. Discount removed.')),
+            );
+          }
+          discount = 0;
+          promoCode = '';
+        } else if ((fresh - discount).abs() > 0.005) {
+          cart.setDiscount(fresh, promoCode);
+          discount = fresh;
+        }
+      }
       final id = await OrderService().placeOrder(
         userId: uid,
         items: cart.items,
@@ -136,7 +202,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         customerName: authUser.name,
         paymentMethod: _payment,
         notes: _notes.text.trim(),
-        discount: cart.discount,
+        discount: discount,
+        promoCode: promoCode,
         customerLat: _lat,
         customerLng: _lng,
         paymentRef: _needsProof ? _paymentRef.text.trim() : '',
@@ -286,22 +353,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
                           initialValue: _payment,
-                          decoration: const InputDecoration(labelText: 'Payment method'),
-                          items: const [
-                            DropdownMenuItem(value: 'Cash on delivery', child: Text('Cash on delivery')),
-                            DropdownMenuItem(value: 'GCash', child: Text('GCash')),
-                            DropdownMenuItem(value: 'E-wallet', child: Text('E-wallet')),
-                            DropdownMenuItem(value: 'Maya', child: Text('Maya')),
-                            DropdownMenuItem(value: 'Card', child: Text('Card')),
+                          decoration:
+                              const InputDecoration(labelText: 'Payment method'),
+                          items: [
+                            for (final m in OrderService.allowedPayments)
+                              DropdownMenuItem(value: m, child: Text(m)),
                           ],
                           onChanged: (v) => setState(() => _payment = v ?? _payment),
                         ),
                         if (_needsProof) ...[
                           const SizedBox(height: 12),
-                          const Text(
-                            'Pay to the merchant wallet, then enter the reference number and attach the screenshot. Admin verifies before food is prepared.',
+                          Text(
+                            _paymentHint,
                             style: TextStyle(
-                                fontSize: 13, color: AppColors.muted),
+                              fontSize: 13,
+                              color: _wallet.isEmpty
+                                  ? AppColors.error
+                                  : AppColors.muted,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           AppTextField(

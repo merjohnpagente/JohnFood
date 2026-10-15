@@ -8,83 +8,178 @@ import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
 import '../../widgets/ui_kit.dart';
 
-class UsersScreen extends StatelessWidget {
+class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
+  @override
+  State<UsersScreen> createState() => _UsersScreenState();
+}
+
+class _UsersScreenState extends State<UsersScreen> {
+  static const _pageSize = 25;
+  final _scroll = ScrollController();
+  bool _loadingMore = false;
+  bool _exhausted = false;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _users = [];
+  bool _firstLoad = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingMore ||
+        _exhausted ||
+        !_scroll.hasClients ||
+        _scroll.position.pixels <
+            _scroll.position.maxScrollExtent - 300) {
+      return;
+    }
+    _loadMore();
+  }
+
+  Future<void> _loadMore() async {
+    setState(() => _loadingMore = true);
+    try {
+      Query<Map<String, dynamic>> q = FirebaseFirestore.instance
+          .collection('users')
+          .orderBy('createdAt', descending: true)
+          .limit(_pageSize);
+      if (_users.isNotEmpty) {
+        q = q.startAfterDocument(_users.last);
+      }
+      final snap = await q.get();
+      if (!mounted) return;
+      setState(() {
+        _users = [..._users, ...snap.docs];
+        _exhausted = snap.docs.length < _pageSize;
+        _loadingMore = false;
+        _firstLoad = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingMore = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load more users')),
+        );
+      }
+    }
+  }
+
+  void _reload() {
+    setState(() {
+      _users = [];
+      _exhausted = false;
+      _firstLoad = true;
+    });
+    _loadMore();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Users')),
       body: ContentWidth(
-        child: StreamBuilder(
-          stream: FirebaseFirestore.instance.collection('users').limit(30).snapshots(),
-          builder: (context, snap) {
-            final docs = snap.data?.docs ?? [];
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (docs.isEmpty) {
-              return const EmptyState(icon: Icons.people_outline_rounded, message: 'No users yet.');
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: docs.length,
-              itemBuilder: (_, i) {
-                final m = docs[i].data();
-                final role = (m['role'] ?? 'customer') as String;
-                final name = '${m['name']}';
-                final icon = role == 'admin'
-                    ? Icons.admin_panel_settings_rounded
-                    : role == 'rider'
-                        ? Icons.delivery_dining_rounded
-                        : Icons.person_outline_rounded;
-                final badgeColor = role == 'admin'
-                    ? AppColors.primary
-                    : role == 'rider'
-                        ? AppColors.info
-                        : AppColors.success;
-                final badgeBg = role == 'admin'
-                    ? AppColors.tint
-                    : role == 'rider'
-                        ? AppColors.infoBg
-                        : AppColors.successBg;
-                return Entrance(
-                  delay:
-                      Duration(milliseconds: (i * 40).clamp(0, 320)),
-                  child: Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 4),
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.tint,
-                        child: Text(
-                          name.isNotEmpty
-                              ? name[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800),
+        child: RefreshIndicator(
+          onRefresh: () async => _reload(),
+          child: _firstLoad && _users.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : _users.isEmpty
+                  ? LayoutBuilder(
+                      builder: (context, c) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: SizedBox(
+                          height: c.maxHeight,
+                          child: const EmptyState(
+                              icon: Icons.people_outline_rounded,
+                              message: 'No users yet.'),
                         ),
                       ),
-                      title: Text(name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700)),
-                      subtitle: Text('${m['email']}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.muted)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: badgeBg,
-                              borderRadius:
-                                  BorderRadius.circular(20),
+                    )
+                  : ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _users.length + (_exhausted ? 0 : 1),
+                      itemBuilder: (_, i) {
+                        if (i >= _users.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2),
+                              ),
+                            ),
+                          );
+                        }
+                        final doc = _users[i];
+                        final m = doc.data();
+                        final role = (m['role'] ?? 'customer') as String;
+                        final name = '${m['name']}';
+                        final icon = role == 'admin'
+                            ? Icons.admin_panel_settings_rounded
+                            : role == 'rider'
+                                ? Icons.delivery_dining_rounded
+                                : Icons.person_outline_rounded;
+                        final badgeColor = role == 'admin'
+                            ? AppColors.primary
+                            : role == 'rider'
+                                ? AppColors.info
+                                : AppColors.success;
+                        final badgeBg = role == 'admin'
+                            ? AppColors.tint
+                            : role == 'rider'
+                                ? AppColors.infoBg
+                                : AppColors.successBg;
+                        return Entrance(
+                          delay: Duration(
+                              milliseconds: (i * 40).clamp(0, 320)),
+                          child: Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 4),
+                              leading: CircleAvatar(
+                                backgroundColor: AppColors.tint,
+                                child: Text(
+                                  name.isNotEmpty
+                                      ? name[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              title: Text(name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              subtitle: Text('${m['email']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.muted)),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: badgeBg,
+                                      borderRadius:
+                                          BorderRadius.circular(20),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -100,36 +195,55 @@ class UsersScreen extends StatelessWidget {
                                         color: badgeColor)),
                               ],
                             ),
+                                  ),
+                                  PopupMenuButton<String>(
+                                    icon: const Icon(
+                                        Icons.more_vert_rounded,
+                                        color: AppColors.muted),
+                                    onSelected: (v) async {
+                                      try {
+                                        await FirebaseFirestore
+                                            .instance
+                                            .collection('users')
+                                            .doc(doc.id)
+                                            .update({'role': v});
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    '$name is now a $v')));
+                                        _reload();
+                                      } catch (_) {
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Could not change role')));
+                                      }
+                                    },
+                                    itemBuilder: (_) => [
+                                      if (role != 'customer')
+                                        const PopupMenuItem(
+                                            value: 'customer',
+                                            child:
+                                                Text('Make customer')),
+                                      if (role != 'rider')
+                                        const PopupMenuItem(
+                                            value: 'rider',
+                                            child: Text('Make rider')),
+                                      if (role != 'admin')
+                                        const PopupMenuItem(
+                                            value: 'admin',
+                                            child: Text('Make admin')),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          PopupMenuButton<String>(
-                            icon: const Icon(
-                                Icons.more_vert_rounded,
-                                color: AppColors.muted),
-                            onSelected: (v) =>
-                                FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(docs[i].id)
-                                    .update({'role': v}),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                  value: 'customer',
-                                  child: Text('Make customer')),
-                              PopupMenuItem(
-                                  value: 'rider',
-                                  child: Text('Make rider')),
-                              PopupMenuItem(
-                                  value: 'admin',
-                                  child: Text('Make admin')),
-                            ],
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
-            );
-          },
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

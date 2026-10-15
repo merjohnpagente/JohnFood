@@ -36,6 +36,7 @@ class AdminProvider extends ChangeNotifier {
   double monthRevenue = 0;
   double yearRevenue = 0;
   double _overall = 0;
+  Map<String, Map<String, dynamic>> topSales = {};
 
   double get overallRevenue => _overall;
 
@@ -61,6 +62,7 @@ class AdminProvider extends ChangeNotifier {
       int tOrders = 0;
       double tRev = 0, mRev = 0, yRev = 0, allRev = 0;
       int active = 0;
+      final topSales = <String, Map<String, dynamic>>{};
       for (final d in snap.docs) {
         final m = d.data();
         final s = (m['status'] ?? '') as String;
@@ -75,6 +77,23 @@ class AdminProvider extends ChangeNotifier {
         final created =
             (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
         allRev += total;
+        // Sales figures come from the items actually ordered.
+        final items = ((m['items'] ?? []) as List);
+        for (final raw in items) {
+          final it = Map<String, dynamic>.from(raw as Map);
+          final fid = (it['foodId'] ?? '') as String;
+          if (fid.isEmpty) continue;
+          final qty = ((it['qty'] ?? 1) as num).toInt();
+          final line =
+              ((it['price'] ?? 0) as num).toDouble() * qty;
+          final entry = topSales.putIfAbsent(fid, () {
+            final name = (it['name'] ?? fid) as String;
+            return <String, dynamic>{'name': name, 'qty': 0, 'revenue': 0.0};
+          });
+          entry['qty'] = ((entry['qty'] ?? 0) as int) + qty;
+          entry['revenue'] =
+              ((entry['revenue'] ?? 0.0) as double) + line;
+        }
         if (!created.isBefore(yearStart)) yRev += total;
         if (!created.isBefore(monthStart)) mRev += total;
         if (!created.isBefore(dayStart)) {
@@ -88,6 +107,7 @@ class AdminProvider extends ChangeNotifier {
       yearRevenue = yRev;
       _overall = allRev;
       activeOrders = active;
+      this.topSales = topSales;
     } catch (_) {
       // Keep last values on offline; dashboard shows cached numbers.
     }

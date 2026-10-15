@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/promo.dart';
 import '../providers/cart_provider.dart';
 import '../services/promo_service.dart';
 import '../theme/app_theme.dart';
@@ -16,11 +21,58 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   final _promo = TextEditingController();
+  String? _promoError;
+  String? _promoApplied;
+  bool _checking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _promoApplied = context.read<CartProvider>().promoCode;
+  }
 
   @override
   void dispose() {
     _promo.dispose();
     super.dispose();
+  }
+
+  Future<void> _applyPromo(CartProvider cart) async {
+    final code = _promo.text.trim();
+    if (code.isEmpty) {
+      cart.setDiscount(0, '');
+      setState(() {
+        _promoError = null;
+        _promoApplied = null;
+      });
+      return;
+    }
+    setState(() => _checking = true);
+    final service = PromoService();
+    final discount = await service.preview(
+      code,
+      cart.subtotal,
+      deliveryFee: cart.deliveryFee,
+    );
+    final problem =
+        await service.previewMessage(code, cart.subtotal, deliveryFee: cart.deliveryFee);
+    if (!mounted) return;
+    setState(() => _checking = false);
+    if (discount > 0) {
+      cart.setDiscount(discount, code.toUpperCase());
+      setState(() {
+        _promoError = null;
+        _promoApplied = code.toUpperCase();
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Promo applied')));
+    } else {
+      cart.setDiscount(0, '');
+      setState(() {
+        _promoError = problem ?? 'That code is not valid.';
+        _promoApplied = null;
+      });
+    }
   }
 
   @override
@@ -38,32 +90,36 @@ class _CartScreenState extends State<CartScreen> {
       appBar: AppBar(
         title: const Text('Cart'),
         actions: [
-          if (cart.items.isNotEmpty)
-            TextButton(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Clear cart?'),
-                    content: const Text('Remove all items from your cart?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
-                      ),
-                      FilledButton(
-                        onPressed: () {
-                          cart.clear();
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Clear'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              child: const Text('Clear'),
-            ),
+          TextButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Clear cart?'),
+                  content: const Text('Remove all items from your cart?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        cart.clear();
+                        setState(() {
+                          _promo.clear();
+                          _promoApplied = null;
+                          _promoError = null;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+              );
+            },
+            child: const Text('Clear'),
+          ),
         ],
       ),
       body: ContentWidth(
@@ -80,24 +136,37 @@ class _CartScreenState extends State<CartScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.delivery_dining_rounded,
+                  const Icon(Icons.delivery_dining_rounded,
                       color: AppColors.primary, size: 28),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Free delivery for orders',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 14)),
-                        Text('above ${formatPeso(500)}!',
-                            style: TextStyle(
-                                fontSize: 12, color: AppColors.muted)),
+                        const Text(
+                          'Free delivery for orders',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                        Text(
+                          'above ${formatPeso(500)}!',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.muted),
+                        ),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded,
-                      color: AppColors.muted),
+                  if (cart.subtotal >= 500)
+                    const Icon(Icons.check_circle_rounded,
+                        color: AppColors.success)
+                  else
+                    Text(
+                      '${formatPeso(500 - cart.subtotal)} to go',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.muted),
+                    ),
                 ],
               ),
             ),
@@ -112,7 +181,8 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),
-                  child: const Icon(Icons.delete_rounded, color: Colors.white),
+                  child: const Icon(Icons.delete_rounded,
+                      color: AppColors.onPrimary),
                 ),
                 onDismissed: (_) {
                   final removed = cart.remove(item.key);
@@ -182,7 +252,13 @@ class _CartScreenState extends State<CartScreen> {
                           children: [
                             QuantityStepper(
                               qty: item.qty,
-                              onChanged: (q) => cart.setQty(item.key, q),
+                              onChanged: (q) {
+                                cart.setQty(item.key, q);
+                                // Re-validate the promo against the new total.
+                                if (_promoApplied != null) {
+                                  _applyPromo(cart);
+                                }
+                              },
                             ),
                             Text(
                               formatPeso(item.food.price * item.qty),
@@ -204,39 +280,118 @@ class _CartScreenState extends State<CartScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _promo,
-                            decoration: const InputDecoration(
-                              hintText: 'Promo code (try JOHN10)',
-                              isDense: true,
+                    StreamBuilder<List<Promo>>(
+                      stream: PromoService().watchActive(),
+                      builder: (context, snap) {
+                        final promos = snap.data ?? const [];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _promo,
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    decoration: InputDecoration(
+                                      hintText: _promoApplied != null
+                                          ? '$_promoApplied applied'
+                                          : 'Promo code',
+                                      isDense: true,
+                                      prefixIcon: Icon(
+                                        Icons.local_offer_outlined,
+                                        size: 18,
+                                        color: _promoError != null
+                                            ? AppColors.error
+                                            : AppColors.muted,
+                                      ),
+                                    ),
+                                    onSubmitted: (_) => _applyPromo(cart),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                FilledButton(
+                                  onPressed:
+                                      _checking ? null : () => _applyPromo(cart),
+                                  child: _checking
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.onPrimary),
+                                        )
+                                      : Text(
+                                          _promoApplied != null ? 'Change' : 'Apply'),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: () async {
-                            final d = await PromoService().preview(_promo.text, cart.subtotal);
-                            cart.setDiscount(d, _promo.text.trim().toUpperCase());
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(d > 0 ? 'Promo applied' : 'Invalid code')),
-                              );
-                            }
-                          },
-                          child: const Text('Apply'),
-                        ),
-                      ],
+                            if (_promoError != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.error_outline_rounded,
+                                        size: 14, color: AppColors.error),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        _promoError!,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.error),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (promos.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              const Text(
+                                'Available codes',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.muted),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                children: [
+                                  for (final p in promos.take(6))
+                                    ActionChip(
+                                      label: Text(
+                                        '${p.code} ${_promoTag(p)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      onPressed: () {
+                                        _promo.text = p.code;
+                                        _applyPromo(cart);
+                                      },
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                     const Divider(height: 24),
                     _row('Subtotal', formatPeso(cart.subtotal)),
                     const SizedBox(height: 8),
-                    _row('Delivery', formatPeso(cart.deliveryFee)),
+                    _row(
+                      'Delivery',
+                      cart.deliveryFee == 0
+                          ? 'Free'
+                          : formatPeso(cart.deliveryFee),
+                    ),
                     if (cart.discount > 0) ...[
                       const SizedBox(height: 8),
-                      _row('Discount', '-${formatPeso(cart.discount)}', color: AppColors.success),
+                      _row('Discount ($_promoApplied)',
+                          '-${formatPeso(cart.discount)}',
+                          color: AppColors.success),
                     ],
                     const Divider(height: 24),
                     Row(
@@ -273,6 +428,19 @@ class _CartScreenState extends State<CartScreen> {
             context, MaterialPageRoute(builder: (_) => const CheckoutScreen())),
       ),
     );
+  }
+
+  static String _promoTag(Promo p) {
+    switch (p.type) {
+      case 'percent':
+        return '${p.value.toStringAsFixed(0)}% off';
+      case 'fixed':
+        return '${formatPeso(p.value)} off';
+      case 'freeship':
+        return 'free delivery';
+      default:
+        return '';
+    }
   }
 
   Widget _row(String label, String value, {Color? color}) {

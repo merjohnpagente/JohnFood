@@ -36,8 +36,25 @@
       "collectionGroup": "foods",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "available", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "foods",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "category", "order": "ASCENDING" },
-        { "fieldPath": "available", "order": "ASCENDING" }
+        { "fieldPath": "available", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "foods",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ratingCount", "order": "DESCENDING" },
+        { "fieldPath": "rating", "order": "DESCENDING" }
       ]
     },
     {

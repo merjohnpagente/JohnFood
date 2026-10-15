@@ -1,11 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import '../models/cart_item.dart';
 import '../models/order.dart';
+import 'promo_service.dart';
 
 double calcSubtotal(List<CartItem> items) =>
     items.fold(0, (s, i) => s + i.lineTotal);
 
-double calcDeliveryFee(double subtotal) => subtotal >= 500 ? 0 : 49;
+/// Free delivery threshold and base fee, kept in one place so the cart,
+/// checkout and the rules stay in sync.
+const double kFreeDeliveryThreshold = 500;
+const double kBaseDeliveryFee = 49;
+
+double calcDeliveryFee(double subtotal) =>
+    subtotal >= kFreeDeliveryThreshold ? 0 : kBaseDeliveryFee;
 
 double calcTotal(double subtotal, double fee, double discount) =>
     (subtotal + fee - discount).clamp(0, double.infinity).toDouble();
@@ -13,12 +20,12 @@ double calcTotal(double subtotal, double fee, double discount) =>
 class OrderService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Only methods the app can actually settle. Kept in sync with the
+  /// validPaymentMethod helper in firestore.rules.
   static const allowedPayments = [
     'Cash on delivery',
     'GCash',
     'Maya',
-    'Card',
-    'E-wallet',
   ];
 
   /// Forward-only transitions. Admin may still cancel from any active state.
@@ -31,12 +38,29 @@ class OrderService {
     'cancelled': [],
   };
 
+  /// Loads one page of a user's orders. [after] is the last document seen,
+  /// so the caller can walk backwards through history.
+  Future<List<Order>> fetchUserOrders({
+    required String uid,
+    DocumentSnapshot<Map<String, dynamic>>? after,
+    int limit = 20,
+  }) async {
+    Query<Map<String, dynamic>> q = _db
+        .collection('orders')
+        .where('userId', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(limit);
+    if (after != null) q = q.startAfterDocument(after);
+    final s = await q.get();
+    return s.docs.map(Order.fromDoc).toList();
+  }
+
   Stream<List<Order>> watchUserOrders(String uid, {bool activeOnly = false}) {
     Query<Map<String, dynamic>> q = _db
         .collection('orders')
         .where('userId', isEqualTo: uid)
         .orderBy('createdAt', descending: true)
-        .limit(20);
+        .limit(30);
     return q.snapshots().map((s) {
       var list = s.docs.map(Order.fromDoc).toList();
       if (activeOnly) {
@@ -69,6 +93,7 @@ class OrderService {
     required String paymentMethod,
     required String notes,
     double discount = 0,
+    String promoCode = '',
     double? customerLat,
     double? customerLng,
     String customerName = '',
@@ -131,6 +156,7 @@ class OrderService {
       'subtotal': subtotal,
       'deliveryFee': fee,
       'discount': safeDiscount,
+      'promoCode': promoCode.trim().toUpperCase(),
       'total': total,
       'status': 'pending',
       'address': cleanAddress,
@@ -158,6 +184,16 @@ class OrderService {
       'createdAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
+    // Count the promo use only for genuinely new orders. Idempotent
+    // retries return above, so a double-tap can never double-count.
+    final code = promoCode.trim().toUpperCase();
+    if (code.isNotEmpty) {
+      try {
+        await PromoService().recordUse(code);
+      } catch (_) {
+        // Usage accounting must never fail the order itself.
+      }
+    }
     return ref.id;
   }
 

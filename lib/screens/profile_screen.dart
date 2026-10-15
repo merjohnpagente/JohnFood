@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../theme/motion.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
+import 'account_screen.dart';
 import 'addresses_screen.dart';
 import 'help_support_screen.dart';
 import 'orders_screen.dart';
@@ -218,6 +219,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () => Navigator.push(
                           context,
                           slideRoute(const PaymentMethodsScreen())),
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    MenuTile(
+                      icon: Icons.badge_outlined,
+                      title: 'Account',
+                      onTap: () => Navigator.push(
+                          context, slideRoute(const AccountScreen())),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     MenuTile(

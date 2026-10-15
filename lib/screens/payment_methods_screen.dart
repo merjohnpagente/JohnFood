@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/merchant_settings.dart';
+import '../services/payment_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/motion.dart';
 import '../utils/responsive.dart';
@@ -14,15 +17,21 @@ class PaymentMethodsScreen extends StatefulWidget {
 
 class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   static const _kKey = 'johnfoods_payment_v1';
-  static const _methods = [
-    ('Cash on delivery', Icons.payments_outlined, 'Pay in cash on arrival'),
-    ('GCash', Icons.account_balance_wallet_outlined, 'Pay with GCash'),
-    ('Maya', Icons.wallet_outlined, 'Pay with Maya'),
-    ('Card', Icons.credit_card_outlined, 'Coming soon to checkout'),
+  static const _keys = [
+    'Cash on delivery',
+    'GCash',
+    'Maya',
   ];
 
-  String _selected = _methods.first.$1;
+  static const _meta = {
+    'Cash on delivery': (Icons.payments_outlined, 'Pay in cash on arrival'),
+    'GCash': (Icons.account_balance_wallet_outlined, 'Transfer, then attach the receipt'),
+    'Maya': (Icons.wallet_outlined, 'Transfer, then attach the receipt'),
+  };
+
+  String _selected = 'Cash on delivery';
   bool _loading = true;
+  MerchantSettings? _merchant;
 
   @override
   void initState() {
@@ -30,22 +39,46 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     _load();
   }
 
+  Future<void> _watchMerchant() async {
+    try {
+      final sub = PaymentService().watchSettings().listen((s) {
+        if (mounted) setState(() => _merchant = s);
+      });
+      _sub = sub;
+    } catch (_) {}
+  }
+
+  StreamSubscription<MerchantSettings>? _sub;
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_kKey);
-      if (saved != null &&
-          mounted &&
-          _methods.any((m) => m.$1 == saved)) {
-        setState(() => _selected = saved);
+      if (saved != null && _keys.contains(saved)) {
+        _selected = saved;
       }
     } catch (_) {
+      // Keep the default method.
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+    _watchMerchant();
   }
 
   Future<void> _select(String value) async {
+    final m = _merchant;
+    if (m != null && !m.isReady(value)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$value is not available right now')),
+      );
+      return;
+    }
     setState(() => _selected = value);
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -68,10 +101,25 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             ? const Center(child: CircularProgressIndicator())
             : ListView.builder(
                 padding: EdgeInsets.all(context.pagePadding),
-                itemCount: _methods.length,
+                itemCount: _keys.length + 1,
                 itemBuilder: (_, i) {
-                  final m = _methods[i];
-                  final selected = m.$1 == _selected;
+                  if (i == _keys.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Card and online wallets are not available yet. '
+                        'Cash on delivery and GCash/Maya transfers work today.',
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.muted),
+                      ),
+                    );
+                  }
+                  final key = _keys[i];
+                  final meta = _meta[key]!;
+                  final selected = key == _selected;
+                  final ready =
+                      _merchant?.isReady(key) ?? key == 'Cash on delivery';
+                  final wallet = _merchant?.walletFor(key) ?? '';
                   return Entrance(
                     delay:
                         Duration(milliseconds: (i * 50).clamp(0, 200)),
@@ -90,25 +138,41 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                                 : AppColors.tint,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(m.$2,
+                          child: Icon(meta.$1,
                               color: selected
-                                  ? Colors.white
+                                  ? AppColors.onPrimary
                                   : AppColors.primary),
                         ),
-                        title: Text(m.$1,
+                        title: Text(key,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700)),
-                        subtitle: Text(m.$3,
-                            style: const TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 13)),
-                        trailing: selected
-                            ? const Icon(Icons.check_circle_rounded,
-                                color: AppColors.primary)
-                            : const Icon(
-                                Icons.circle_outlined,
-                                color: AppColors.muted),
-                        onTap: () => _select(m.$1),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ready
+                                  ? (wallet.isEmpty
+                                      ? meta.$2
+                                      : '$meta.$2  ($wallet)')
+                                  : 'Unavailable right now',
+                              style: TextStyle(
+                                  color: ready
+                                      ? AppColors.muted
+                                      : AppColors.error,
+                                  fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        trailing: !ready
+                            ? const Icon(Icons.block_rounded,
+                                color: AppColors.muted)
+                            : selected
+                                ? const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: AppColors.primary)
+                                : const Icon(Icons.circle_outlined,
+                                    color: AppColors.muted),
+                        onTap: ready ? () => _select(key) : null,
                       ),
                     ),
                   );

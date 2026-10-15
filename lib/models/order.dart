@@ -28,6 +28,7 @@ class Order {
   final double subtotal;
   final double deliveryFee;
   final double discount;
+  final String promoCode;
   final double total;
   final String status;
   final String address;
@@ -52,6 +53,7 @@ class Order {
     required this.subtotal,
     required this.deliveryFee,
     required this.discount,
+    this.promoCode = '',
     required this.total,
     required this.status,
     required this.address,
@@ -81,6 +83,7 @@ class Order {
       subtotal: ((m['subtotal'] ?? 0) as num).toDouble(),
       deliveryFee: ((m['deliveryFee'] ?? 0) as num).toDouble(),
       discount: ((m['discount'] ?? 0) as num).toDouble(),
+      promoCode: (m['promoCode'] ?? '') as String,
       total: ((m['total'] ?? 0) as num).toDouble(),
       status: (m['status'] ?? 'pending') as String,
       address: (m['address'] ?? '') as String,

@@ -144,7 +144,53 @@ class AuthService {
     if (phone != null) data['phone'] = phone.trim();
     if (data.isNotEmpty) {
       await _db.collection('users').doc(uid).update(data);
+      // Keep the Auth profile in sync for Google users.
+      final u = _auth.currentUser;
+      if (u != null && (name != null || phone != null)) {
+        try {
+          await u.updateDisplayName(name?.trim());
+        } catch (_) {
+          // Not fatal: the Firestore doc is what the app reads.
+        }
+      }
     }
+  }
+
+  /// Changes the password. Requires the current one so a borrowed phone
+  /// cannot hijack the account.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final u = _auth.currentUser;
+    if (u == null) throw Exception('Not signed in');
+    if (u.email == null || u.email!.isEmpty) {
+      throw Exception(
+          'This account signs in with Google. Set a password from the reset email first.');
+    }
+    final cred = EmailAuthProvider.credential(
+        email: u.email!, password: currentPassword);
+    // Reauthenticate, then rotate.
+    await u.reauthenticateWithCredential(cred);
+    await u.updatePassword(newPassword);
+  }
+
+  /// Sends a password reset email for the signed-in account.
+  Future<void> sendPasswordReset() async {
+    final u = _auth.currentUser;
+    if (u == null || u.email == null || u.email!.isEmpty) {
+      throw Exception('This account has no password to reset');
+    }
+    await _auth.sendPasswordResetEmail(email: u.email!);
+  }
+
+  /// Deletes the Firestore profile and the Auth account. Orders are kept so
+  /// admin revenue history stays intact, but the link to the user is removed.
+  Future<void> deleteAccount() async {
+    final u = _auth.currentUser;
+    if (u == null) throw Exception('Not signed in');
+    await _db.collection('users').doc(u.uid).delete().catchError((_) {});
+    await u.delete();
   }
 
   Future<void> updateFavorites(String uid, List<String> favorites) async {

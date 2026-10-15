@@ -42,8 +42,6 @@ class _OrdersScreenState extends State<OrdersScreen>
       _watchingUid = uid;
       ordersP.watch(uid);
     }
-    final active = ordersP.active;
-    final history = ordersP.history;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Orders'),
@@ -55,9 +53,9 @@ class _OrdersScreenState extends State<OrdersScreen>
           labelColor: AppColors.primary,
           labelStyle: const TextStyle(fontWeight: FontWeight.w700),
           unselectedLabelColor: AppColors.muted,
-          tabs: const [
-            Tab(text: 'Active'),
-            Tab(text: 'History'),
+          tabs: [
+            Tab(text: 'Active${ordersP.active.isEmpty ? '' : ' (${ordersP.active.length})'}'),
+            const Tab(text: 'History'),
           ],
         ),
       ),
@@ -66,8 +64,9 @@ class _OrdersScreenState extends State<OrdersScreen>
         child: TabBarView(
           controller: _tab,
           children: [
-            _list(active, empty: 'No active orders.'),
-            _list(history, empty: 'No past orders yet.', isHistory: true),
+            _list(ordersP.active,
+                empty: 'No active orders.', isHistory: false),
+            _list(ordersP.history, empty: 'No past orders yet.', isHistory: true),
           ],
         ),
       ),
@@ -90,63 +89,106 @@ class _OrdersScreenState extends State<OrdersScreen>
       padding: const EdgeInsets.all(16),
       itemCount: list.length,
       itemBuilder: (_, i) {
-        final o = list[i] as dynamic;
+        final o = list[i];
         final status = o.status as String;
         final id = o.id as String;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            onTap: () => Navigator.push(
-              context,
-              slideRoute(TrackingScreen(orderId: id)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Order #${id.length > 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase()}',
+        final items = o.items as List;
+        return Entrance(
+          delay: Duration(milliseconds: (i * 40).clamp(0, 280)),
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              onTap: () => Navigator.push(
+                context,
+                slideRoute(TrackingScreen(orderId: id)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Order #${id.length > 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase()}',
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        StatusChip(status),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (items.isNotEmpty)
+                      Text(
+                        items
+                            .take(2)
+                            .map((e) => '${(e as dynamic).qty}x ${e.name}')
+                            .join(', '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.inkSecondary),
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          '${items.length} item(s)',
                           style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700),
+                              fontSize: 13, color: AppColors.muted),
+                        ),
+                        const Spacer(),
+                        Text(
+                          formatPeso((o.total as num).toDouble()),
+                          style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary),
+                        ),
+                      ],
+                    ),
+                    if (!isHistory && status == 'pending') ...[
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () async {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: const Text('Cancel order?'),
+                                content: const Text(
+                                    'This cannot be undone once the kitchen '
+                                    'already started.'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Keep order'),
+                                  ),
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                        backgroundColor: AppColors.error),
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('Cancel order'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (ok == true) {
+                              await OrderService().cancelOrder(id);
+                            }
+                          },
+                          child: const Text('Cancel order'),
                         ),
                       ),
-                      StatusChip(status),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Text(
-                        '${(o.items as List).length} item(s)',
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.muted),
-                      ),
-                      const Spacer(),
-                      Text(
-                        formatPeso((o.total as num).toDouble()),
-                        style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primary),
-                      ),
-                    ],
-                  ),
-                  if (!isHistory && status == 'pending') ...[
-                    const SizedBox(height: 4),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => OrderService().cancelOrder(id),
-                        child: const Text('Cancel order'),
-                      ),
-                    ),
                   ],
-                ],
+                ),
               ),
             ),
           ),

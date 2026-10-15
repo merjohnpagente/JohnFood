@@ -19,14 +19,20 @@ class MenuService {
     );
   }
 
-  Stream<List<Food>> watchFoods({String? category, int limit = 20}) {
-    Query<Map<String, dynamic>> q =
-        _db.collection('foods').where('available', isEqualTo: true).limit(limit);
+  /// Live menu. [limit] is generous on purpose: a small restaurant menu is a
+  /// few dozen items, and truncating it hid most of the catalogue.
+  Stream<List<Food>> watchFoods({String? category, int limit = 200}) {
+    Query<Map<String, dynamic>> q = _db
+        .collection('foods')
+        .where('available', isEqualTo: true)
+        .orderBy('name')
+        .limit(limit);
     if (category != null && category.isNotEmpty) {
       q = _db
           .collection('foods')
           .where('category', isEqualTo: category)
           .where('available', isEqualTo: true)
+          .orderBy('name')
           .limit(limit);
     }
     return q.snapshots().map((s) {
@@ -55,7 +61,11 @@ class MenuService {
   Future<List<Food>> searchFoods(String query) async {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return [];
-    final snap = await _db.collection('foods').limit(50).get();
+    final snap = await _db
+        .collection('foods')
+        .where('available', isEqualTo: true)
+        .limit(200)
+        .get();
     if (snap.docs.isEmpty) {
       return sampleFoods
           .where((f) =>

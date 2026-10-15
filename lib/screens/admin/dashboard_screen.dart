@@ -95,16 +95,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const SectionHeader(title: 'Top foods'),
+              const SectionHeader(title: 'Top sellers'),
+              const SizedBox(height: 8),
+              _topSellers(admin),
+              const SizedBox(height: 20),
+              const SectionHeader(title: 'Best rated'),
               const SizedBox(height: 8),
               StreamBuilder(
                 stream: FirebaseFirestore.instance
                     .collection('foods')
+                    .where('ratingCount', isGreaterThan: 0)
                     .orderBy('rating', descending: true)
                     .limit(5)
                     .snapshots(),
                 builder: (context, snap) {
-                  if (!snap.hasData) {
+                  if (snap.connectionState == ConnectionState.waiting) {
                     return const Column(
                       children: [
                         ShimmerBox(height: 64, radius: 16),
@@ -115,101 +120,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     );
                   }
-                  final docs = snap.data!.docs;
+                  final docs = snap.data?.docs ?? const [];
                   if (docs.isEmpty) {
                     return const EmptyState(
-                        icon: Icons.fastfood_outlined,
-                        message: 'No foods yet.');
+                        icon: Icons.star_outline_rounded,
+                        message: 'No ratings yet. Reviews will show up here.');
                   }
                   return Column(
                     children: [
                       for (var i = 0; i < docs.length; i++)
-                        Entrance(
-                          delay: Duration(
-                              milliseconds: (i * 60).clamp(0, 240)),
-                          child: Card(
-                            margin:
-                                const EdgeInsets.only(bottom: 10),
-                            child: ListTile(
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 4),
-                              leading: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Container(
-                                    width: 46,
-                                    height: 46,
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.tint,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                        Icons.fastfood_rounded,
-                                        color: AppColors.primary,
-                                        size: 22),
-                                  ),
-                                  if (i == 0)
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: Container(
-                                        padding:
-                                            const EdgeInsets.all(3),
-                                        decoration:
-                                            const BoxDecoration(
-                                          color: AppColors.accent,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(
-                                            Icons.star_rounded,
-                                            size: 10,
-                                            color: Colors.white),
-                                      ),
-                                    ),
-                                ],
+                        _rankRow(
+                          rank: i + 1,
+                          name: '${docs[i].data()['name']}',
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded,
+                                  size: 15, color: AppColors.accent),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${((docs[i].data()['rating'] ?? 0) as num).toStringAsFixed(1)}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700),
                               ),
-                              title: Text(
-                                  '${docs[i].data()['name']}',
-                                  maxLines: 1,
-                                  overflow:
-                                      TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontWeight:
-                                          FontWeight.w700)),
-                              subtitle: Text(
-                                  '#${i + 1} most loved',
-                                  style: const TextStyle(
-                                      color: AppColors.muted,
-                                      fontSize: 12)),
-                              trailing: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.tint,
-                                  borderRadius:
-                                      BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                        Icons.star_rounded,
-                                        size: 15,
-                                        color: AppColors.accent),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                        '${((docs[i].data()['rating'] ?? 0) as num).toStringAsFixed(1)}',
-                                        style: const TextStyle(
-                                            fontWeight:
-                                                FontWeight.w700)),
-                                  ],
-                                ),
-                              ),
-                            ),
+                            ],
                           ),
+                          subtitle:
+                              '${((docs[i].data()['ratingCount'] ?? 0) as num).toInt()} review(s)',
                         ),
                     ],
                   );
@@ -222,7 +159,123 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Small stat tile. Both money and counts animate from zero on load.
+  /// Real sales ranking, computed from the orders that were placed.
+  Widget _topSellers(AdminProvider admin) {
+    final entries = admin.topSales.entries.toList()
+      ..sort((a, b) =>
+          ((b.value['revenue'] ?? 0.0) as double)
+              .compareTo((a.value['revenue'] ?? 0.0) as double));
+    if (entries.isEmpty) {
+      return const EmptyState(
+          icon: Icons.insights_outlined,
+          message: 'No sales yet.');
+    }
+    final top = entries.take(5).toList();
+    final maxRev =
+        ((top.first.value['revenue'] ?? 0.0) as double).clamp(0.0001, double.infinity);
+    return Column(
+      children: [
+        for (var i = 0; i < top.length; i++)
+          _rankRow(
+            rank: i + 1,
+            name: '${top[i].value['name']}',
+            subtitle:
+                '${top[i].value['qty']} sold  •  ${formatPeso(top[i].value['revenue'] ?? 0.0)}',
+            bar: ((top[i].value['revenue'] ?? 0.0) as double) / maxRev,
+            trailing: Text(
+              '#${i + 1}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: i == 0 ? AppColors.accent : AppColors.muted,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _rankRow({
+    required int rank,
+    required String name,
+    required Widget trailing,
+    String? subtitle,
+    double? bar,
+  }) =>
+      Entrance(
+        delay: Duration(milliseconds: (rank * 50).clamp(0, 240)),
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: rank == 1 ? AppColors.accent : AppColors.tint,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$rank',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: rank == 1
+                          ? AppColors.onPrimary
+                          : AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                              color: AppColors.muted, fontSize: 12),
+                        ),
+                      if (bar != null) ...[
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0, end: bar.clamp(0, 1)),
+                            duration: const Duration(milliseconds: 800),
+                            curve: Curves.easeOutCubic,
+                            builder: (_, v, __) => LinearProgressIndicator(
+                              value: v,
+                              minHeight: 5,
+                              backgroundColor: AppColors.shimmer,
+                              valueColor: const AlwaysStoppedAnimation(
+                                  AppColors.primary),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                trailing,
+              ],
+            ),
+          ),
+        ),
+      );
+
+/// Small stat tile. Both money and counts animate from zero on load.
   Widget _statCard(
     String label,
     double value,

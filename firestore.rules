@@ -17,7 +17,7 @@ service cloud.firestore {
         get(/databases/$(database)/documents/orders/$(orderId)).data.get('riderId', '') == request.auth.uid;
     }
     function validPaymentMethod(m) {
-      return m in ['Cash on delivery', 'GCash', 'Maya', 'Card', 'E-wallet'];
+      return m in ['Cash on delivery', 'GCash', 'Maya'];
     }
     function isAssignedRider(orderRiderId) {
       return isSignedIn() && orderRiderId is string &&
@@ -47,11 +47,6 @@ service cloud.firestore {
     match /foods/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
-    }
-
-    match /promos/{code} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
     }
 
     match /users/{uid} {
@@ -136,7 +131,8 @@ service cloud.firestore {
           request.resource.data.get('paymentProofUrl', '').size() <= 1000) ||
         isAdmin() ||
         (isAssignedRider(resource.data.get('riderId', '')) && safeRiderUpdate() &&
-          validStatus(request.resource.data.status))
+          validStatus(request.resource.data.status) &&
+          riderCannotReopen())
       );
       allow delete: if false;
     }
@@ -181,6 +177,32 @@ service cloud.firestore {
     match /foodImages/{id} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // Single doc holding merchant wallet details for manual GCash/Maya
+    // payments. Readable by signed-in customers so checkout can show where
+    // to pay; writable only by admins.
+    match /merchantSettings/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Promo codes. Admins manage them; a signed-in customer may only bump
+    // the `used` counter when placing an order, so max-use caps work.
+    match /promos/{code} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() ||
+        (isSignedIn() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['used']) &&
+          request.resource.data.used == resource.data.used + 1);
+    }
+
+    // Guard against a rider rewinding their own progress.
+    function riderCannotReopen() {
+      return !(resource.data.status in ['on_the_way', 'delivered']) ||
+        request.resource.data.status == resource.data.status;
     }
   }
 }

@@ -34,7 +34,11 @@ class FoodsScreen extends StatelessWidget {
       ),
       body: ContentWidth(
         child: StreamBuilder(
-          stream: FirebaseFirestore.instance.collection('foods').limit(30).snapshots(),
+          stream: FirebaseFirestore.instance
+              .collection('foods')
+              .orderBy('name')
+              .limit(200)
+              .snapshots(),
           builder: (context, snap) {
             final docs = snap.data?.docs ?? [];
             if (snap.connectionState == ConnectionState.waiting) {
@@ -118,6 +122,19 @@ class FoodsScreen extends StatelessWidget {
                               ),
                               IconButton(
                                 icon: const Icon(
+                                    Icons.edit_outlined,
+                                    color: AppColors.primary,
+                                    size: 20),
+                                tooltip: 'Edit',
+                                onPressed: () => showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  builder: (_) =>
+                                      _FoodForm(existing: docs[i]),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
                                     Icons.delete_outline_rounded,
                                     color: AppColors.error,
                                     size: 20),
@@ -176,22 +193,43 @@ class FoodsScreen extends StatelessWidget {
   }
 }
 
+/// Add or edit a food item. Passing [existing] switches to edit mode so the
+/// admin can fix a price or description without deleting and re-adding.
 class _FoodForm extends StatefulWidget {
-  const _FoodForm();
+  final QueryDocumentSnapshot<Map<String, dynamic>>? existing;
+  const _FoodForm({this.existing});
   @override
   State<_FoodForm> createState() => _FoodFormState();
 }
 
 class _FoodFormState extends State<_FoodForm> {
   final _form = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _price = TextEditingController();
-  final _desc = TextEditingController();
-  final _time = TextEditingController(text: '20 min');
+  late final TextEditingController _name;
+  late final TextEditingController _price;
+  late final TextEditingController _desc;
+  late final TextEditingController _time;
+  late final TextEditingController _options;
   String? _category;
   List<int>? _imageBytes;
   String _imageName = 'food.jpg';
   bool _saving = false;
+
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final m = widget.existing?.data() ?? const {};
+    _name = TextEditingController(text: '${m['name'] ?? ''}');
+    _price = TextEditingController(
+        text: ((m['price'] ?? 0) as num) == 0 ? '' : '${m['price']}');
+    _desc = TextEditingController(text: '${m['description'] ?? ''}');
+    _time = TextEditingController(text: '${m['deliveryTime'] ?? '20 min'}');
+    _options = TextEditingController(
+        text: ((m['options'] ?? []) as List).join(', '));
+    final cat = m['category'];
+    if (cat != null && '$cat'.isNotEmpty) _category = '$cat';
+  }
 
   @override
   void dispose() {
@@ -199,6 +237,7 @@ class _FoodFormState extends State<_FoodForm> {
     _price.dispose();
     _desc.dispose();
     _time.dispose();
+    _options.dispose();
     super.dispose();
   }
 
@@ -233,25 +272,47 @@ class _FoodFormState extends State<_FoodForm> {
       return;
     }
     setState(() => _saving = true);
+    final options = _options.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
     try {
-      final ref = await FirebaseFirestore.instance.collection('foods').add({
-        'name': _name.text.trim(),
-        'description': _desc.text.trim(),
-        'price': double.tryParse(_price.text) ?? 0,
-        'rating': 0,
-        'ratingCount': 0,
-        'image': 'assets/images/b1.jpg',
-        'category': _category,
-        'deliveryTime': _time.text.trim().isEmpty ? '20 min' : _time.text.trim(),
-        'available': true,
-        'options': <String>[],
-      });
+      final docId = _isEdit ? widget.existing!.id : null;
+      final ref = docId == null
+          ? await FirebaseFirestore.instance.collection('foods').add({
+              'name': _name.text.trim(),
+              'description': _desc.text.trim(),
+              'price': double.tryParse(_price.text) ?? 0,
+              'rating': 0,
+              'ratingCount': 0,
+              'image': 'assets/images/b1.jpg',
+              'category': _category,
+              'deliveryTime': _time.text.trim().isEmpty
+                  ? '20 min'
+                  : _time.text.trim(),
+              'available': true,
+              'options': options,
+            })
+          : FirebaseFirestore.instance.collection('foods').doc(docId);
+      if (docId != null) {
+        await ref.update({
+          'name': _name.text.trim(),
+          'description': _desc.text.trim(),
+          'price': double.tryParse(_price.text) ?? 0,
+          'category': _category,
+          'deliveryTime': _time.text.trim().isEmpty
+              ? '20 min'
+              : _time.text.trim(),
+          'options': options,
+        });
+      }
       if (_imageBytes != null) {
         try {
           await ImageService()
               .uploadFoodImage(ref.id, _imageBytes!, _imageName);
         } catch (_) {
-          // Doc already created with fallback image; admin can retry.
+          // Item is saved already; the image can be re-attached later.
         }
       }
       if (mounted) Navigator.pop(context);
@@ -267,9 +328,15 @@ class _FoodFormState extends State<_FoodForm> {
 
   @override
   Widget build(BuildContext context) {
+    final existingImage = _isEdit
+        ? '${widget.existing!.data()['image'] ?? ''}'
+        : '';
     return Padding(
       padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 16),
       child: Form(
         key: _form,
         child: SingleChildScrollView(
@@ -277,9 +344,15 @@ class _FoodFormState extends State<_FoodForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Add food', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(_isEdit ? 'Edit food' : 'Add food',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 12),
-              AppTextField(controller: _name, label: 'Name', validator: (v) => v!.trim().isEmpty ? 'Enter name' : null),
+              AppTextField(
+                controller: _name,
+                label: 'Name',
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Enter name' : null,
+              ),
               const SizedBox(height: 8),
               AppTextField(
                 controller: _price,
@@ -300,7 +373,9 @@ class _FoodFormState extends State<_FoodForm> {
                 builder: (context, snap) {
                   final cats = snap.data?.docs ?? [];
                   return DropdownButtonFormField<String>(
-                    initialValue: cats.any((c) => c.id == _category) ? _category : null,
+                    initialValue: cats.any((c) => c.id == _category)
+                        ? _category
+                        : null,
                     decoration: const InputDecoration(labelText: 'Category'),
                     items: [
                       for (final c in cats)
@@ -318,16 +393,46 @@ class _FoodFormState extends State<_FoodForm> {
               const SizedBox(height: 8),
               AppTextField(controller: _desc, label: 'Description', maxLines: 2),
               const SizedBox(height: 8),
-              AppTextField(controller: _time, label: 'Delivery time (e.g. 20 min)'),
+              AppTextField(
+                controller: _time,
+                label: 'Delivery time (e.g. 20 min)',
+              ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.image_outlined, size: 18),
-                label: Text(_imageBytes == null ? 'Add photo (optional)' : 'Photo attached'),
+              AppTextField(
+                controller: _options,
+                label: 'Options (comma separated)',
+                hint: 'Regular, Large, Extra cheese',
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (_imageBytes != null || existingImage.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: _imageBytes != null
+                            ? Image.memory(_imageBytes!)
+                            : FoodImage(existingImage),
+                      ),
+                    ),
+                  if (_imageBytes != null || existingImage.isNotEmpty)
+                    const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.image_outlined, size: 18),
+                      label: Text(_imageBytes == null
+                          ? 'Change photo'
+                          : 'Photo attached'),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               PrimaryButton(
-                label: 'Save',
+                label: _isEdit ? 'Save changes' : 'Save',
                 loading: _saving,
                 onPressed: _save,
               ),
