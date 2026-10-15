@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/review.dart' show AppNotification;
 
@@ -9,23 +10,46 @@ class NotificationService {
 
   Future<void> init() async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const settings = InitializationSettings(android: android);
-    await _local.initialize(settings);
+    const darwin = DarwinInitializationSettings(
+      // iOS shows the permission prompt on first use; without a handler
+      // the tap does nothing.
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+    const settings =
+        InitializationSettings(android: android, iOS: darwin);
+    await _local.initialize(
+      settings,
+      // iOS needs an explicit handler for taps on the notification banner.
+      onDidReceiveNotificationResponse: (r) {},
+    );
+    // Android 13+ needs this before notifications will show at all.
+    final androidImpl = _local.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await androidImpl?.requestNotificationsPermission();
   }
 
-  Stream<List<AppNotification>> watch(String uid) => _db
-      .collection('users')
-      .doc(uid)
-      .collection('notifications')
-      .orderBy('createdAt', descending: true)
-      .limit(30)
-      .snapshots()
-      .map((s) => s.docs
-          .map((d) =>
-              AppNotification.fromDoc(d as DocumentSnapshot<Map<String, dynamic>>))
-          .toList());
+  Stream<List<AppNotification>> watch(String uid) {
+    if (uid.isEmpty) return const Stream.empty();
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .limit(30)
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => AppNotification.fromDoc(
+                d as DocumentSnapshot<Map<String, dynamic>>))
+            .toList());
+  }
 
-  Future<void> showLocal(String title, String body) => _local.show(
+  /// Fires a local alert. Safe to call often; never throws to the caller.
+  Future<void> showLocal(String title, String body) async {
+    if (title.isEmpty && body.isEmpty) return;
+    try {
+      await _local.show(
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
         title,
         body,
@@ -33,11 +57,24 @@ class NotificationService {
           android: AndroidNotificationDetails(
             'order_status',
             'Order status',
-            importance: Importance.high,
+            importance: Importance.max,
             priority: Priority.high,
+            playSound: true,
+            enableVibration: true,
+            category: AndroidNotificationCategory.event,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+            interruptionLevel: InterruptionLevel.timeSensitive,
           ),
         ),
       );
+    } catch (e) {
+      debugPrint('Local notification failed: $e');
+    }
+  }
 
   Future<void> markRead(String uid, String id) => _db
       .collection('users')

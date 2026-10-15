@@ -27,26 +27,34 @@ production where prices must be computed server-side.
    fails with ApiException 10. Authentication > Settings > Authorized
    domains: add your GitHub Pages and Vercel domains or web Google
    sign-in will fail.
-5. Settings > Pages > Source: GitHub Actions (kept).
-6. Commit to `main`. Actions tab:
+5. iOS: add an Apple app with bundle id `com.merjdev.johnfoods` in the
+   Firebase console, then set `IOS_API_KEY`, `IOS_APP_ID`,
+   `IOS_MESSAGING_SENDER_ID`, `IOS_STORAGE_BUCKET` and
+   `IOS_GOOGLE_SERVICES_JSON` secrets. See `PLATFORM_SETUP.md`. Without
+   them the iOS build still compiles and only Google sign-in is disabled.
+6. Settings > Pages > Source: GitHub Actions (kept).
+7. Commit to `main`. Actions tab:
    - Build Android APK: download `john-foods-apk` artifact, install on phone.
+   - Build iOS: downloads `john-foods-ios` (unsigned `Runner.app`).
    - Deploy Web (GitHub Pages, kept): open `https://<user>.github.io/<repo>/`.
    - Deploy Web to Vercel (auto): builds with `--base-href /` and deploys
      `build/web` to `https://johnfoodapp.vercel.app` (`vercel.json` handles
      SPA fallback to `index.html`).
    - Deploy Firestore rules: runs on rules changes + manual.
-7. Failed run: open the red job, copy error lines, ask AI to fix.
+8. Failed run: open the red job, copy error lines, ask AI to fix.
 
-Platform folders: if `android/` or `web/` is missing (fresh clone), workflows
-auto-run `flutter create . --project-name john_foods --org com.merjdev.johnfoods`.
+Platform folders: if `android/`, `ios/` or `web/` is missing (fresh clone),
+workflows auto-run `flutter create . --project-name john_foods --org
+com.merjdev.johnfoods`.
 For signed release APK, add `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
 `KEY_ALIAS`, `KEY_PASSWORD` secrets.
 
 ## End-to-end test (Spark free)
 
-Register, browse, add to cart, apply JOHN10, place order, login as admin,
-change status Preparing > On the way > Delivered, assign rider, customer sees
-notification + live map (OpenStreetMap + OSRM, best effort).
+Register, browse, add to cart, apply a promo from Admin > Promos, place
+order, login as admin, verify the payment proof if GCash/Maya, assign a
+rider, rider accepts, customer sees the notification and live map
+(OpenStreetMap + OSRM, best effort).
 
 ## Strict rules checklist
 
@@ -58,3 +66,21 @@ notification + live map (OpenStreetMap + OSRM, best effort).
 - Friendly errors only (see `error_mapper.dart`).
 - No secrets committed (`String.fromEnvironment` + `--dart-define`).
 - Accessibility: 48px targets, Semantics on icon buttons, text scale clamp 0.9-1.2.
+
+## Known limits
+
+These are real and not fixable on the free Spark plan:
+
+- **Prices are computed on the device.** Firestore rules now reject an order
+  whose subtotal does not match its own items and cap quantity, price and
+  item counts, but a tampered APK could still send a lower per-item price.
+  Only Cloud Functions (Blaze plan) can verify prices against the menu.
+- **No server push.** Rider alerts are local notifications driven by the
+  rider's own order stream, so the rider app must be open.
+- **Location is foreground only** for the customer map; the rider's auto
+  tracking needs the app open and the screen allowed to sleep normally.
+- **GCash and Maya are manual.** The customer attaches a screenshot and an
+  admin verifies it by hand. No payment gateway is integrated.
+- **iOS builds unsigned.** `flutter build ios --no-codesign` verifies the
+  build; App Store distribution needs an Apple Developer account.
+- **No crash reporting.** Failures are only visible in the CI logs.

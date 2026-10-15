@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
@@ -21,6 +22,9 @@ class _RiderScreenState extends State<RiderScreen> {
   DateTime _lastWrite = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastAutoWrite = DateTime.fromMillisecondsSinceEpoch(0);
   StreamSubscription<Position>? _posSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _assignSub;
+  final Set<String> _seen = {};
+  String _watchingUid = '';
   bool _autoTrack = false;
   List<String> _activeIds = [];
   bool _busy = false;
@@ -52,9 +56,39 @@ class _RiderScreenState extends State<RiderScreen> {
     }
   }
 
+  /// Watches every order the admin has assigned to this rider and raises a
+  /// local alert for new ones. Works without Cloud Functions because the
+  /// rider's own document stream is the signal.
+  void _watchAssignments(String uid) {
+    _assignSub?.cancel();
+    _seen.clear();
+    _assignSub = FirebaseFirestore.instance
+        .collection('orders')
+        .where('riderId', isEqualTo: uid)
+        .where('status', isEqualTo: 'assigned')
+        .snapshots()
+        .listen((s) {
+      for (final d in s.docs) {
+        if (_seen.add(d.id)) {
+          if (_seen.length > 1) {
+            // First entry is the initial load, not a new job.
+            final m = d.data();
+            final where = (m['address'] ?? '') as String;
+            NotificationService().showLocal(
+              'New order assigned',
+              '${formatPeso(((m['total'] ?? 0) as num).toDouble())}  •  '
+                  '${where.length > 60 ? '${where.substring(0, 60)}...' : where}',
+            );
+          }
+        }
+      }
+    }, onError: (_) {/* offline: the list itself shows the error */});
+  }
+
   @override
   void dispose() {
     _posSub?.cancel();
+    _assignSub?.cancel();
     super.dispose();
   }
 
@@ -241,6 +275,10 @@ class _RiderScreenState extends State<RiderScreen> {
   @override
   Widget build(BuildContext context) {
     final uid = context.watch<AuthProvider>().user?.uid ?? '';
+    if (uid.isNotEmpty && uid != _watchingUid) {
+      _watchingUid = uid;
+      _watchAssignments(uid);
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Assigned orders'),
