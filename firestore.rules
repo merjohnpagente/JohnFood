@@ -1,5 +1,15 @@
 // John Foods Firestore security rules.
 // Deployed by .github/workflows/deploy-firebase.yml on every change here.
+//
+// Collections:
+//   categories, foods        public read, admin writes
+//   users                    owner self-service, admin manages roles
+//   orders                   customers create, riders move their own, admin all
+//   notifications            owner read, admin and assigned rider write
+//   paymentProofs            customer of the order and admin
+//   reviews                  public read, immutable once written
+//   merchantSettings         signed-in read, admin writes
+//   promos                   signed-in read, admin writes
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
