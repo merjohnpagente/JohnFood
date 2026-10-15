@@ -132,19 +132,17 @@ jobs:
 
       - name: Report build failure to an issue
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: "APK build failed ${{ github.sha }}"
         run: |
           {
-            echo "### APK build log (\`${GITHUB_SHA:0:7}\`)"
+            echo "### APK build log"
             echo
             echo '```'
             tail -120 /tmp/apk-build.log 2>/dev/null || echo "no build log captured"
             echo '```'
           } > /tmp/issue.md
-          TITLE="APK build failed ${GITHUB_SHA:0:7}"
-          gh issue create \
-            --title "$TITLE" \
-            --body-file /tmp/issue.md \
-            --label build-failure 2>/dev/null || \
           gh issue create --title "$TITLE" --body-file /tmp/issue.md
 
       - name: Upload build log on failure
