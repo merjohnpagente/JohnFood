@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/promo.dart';
-import '../../providers/providers.dart';
-import '../../services/order_service.dart';
 import '../../services/promo_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/motion.dart';
