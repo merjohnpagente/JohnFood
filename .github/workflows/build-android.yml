@@ -1,0 +1,152 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Bootstrap platform folders if missing
+        run: |
+          if [ ! -d android ] || [ ! -d web ]; then
+            flutter create . --project-name john_foods --org com.merjdev.johnfoods
+          fi
+
+      - name: Remove template test stub
+        run: rm -f test/widget_test.dart
+
+      - name: Set Android app label
+        run: |
+          sed -i 's/android:label="[^"]*"/android:label="John Foods"/' android/app/src/main/AndroidManifest.xml
+          git checkout -- web/index.html web/manifest.json || true
+
+      - name: Add location permissions (rider tracking + checkout GPS)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q "ACCESS_FINE_LOCATION" $M || sed -i '/<manifest/a \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"\/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"\/>' $M
+          grep "ACCESS_FINE_LOCATION" $M
+
+      - name: Enable core library desugaring
+        run: |
+          ls android/app/
+          python3 - <<'EOF'
+          import os, re
+          g = "android/app/build.gradle"
+          k = "android/app/build.gradle.kts"
+          f = g if os.path.exists(g) else k
+          assert os.path.exists(f), "no android build file found"
+          print("patching " + f)
+          s = open(f).read()
+          groovy = f.endswith(".gradle")
+          flag = "coreLibraryDesugaringEnabled = true" if groovy else "isCoreLibraryDesugaringEnabled = true"
+          dep = "coreLibraryDesugaring \x27com.android.tools:desugar_jdk_libs:2.1.4\x27" if groovy else 'coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
+          if flag not in s:
+              assert "compileOptions" in s, "no compileOptions block:\n" + s[:2000]
+              s = re.sub(r"compileOptions\s*\{", "compileOptions {\n        " + flag, s, count=1)
+          if "desugar_jdk_libs" not in s:
+              if re.search(r"dependencies\s*\{", s):
+                  s = re.sub(r"dependencies\s*\{", "dependencies {\n    " + dep, s, count=1)
+              else:
+                  s += "\ndependencies {\n    " + dep + "\n}\n"
+          open(f, "w").write(s)
+          s = open(f).read()
+          assert flag in s, "FLAG MISSING AFTER PATCH"
+          assert "desugar_jdk_libs" in s, "DEP MISSING AFTER PATCH"
+          i = s.find("compileOptions")
+          print(s[max(0,i-200):i+600])
+          print("desugar patch VERIFIED in " + f)
+          EOF
+
+
+      - name: Use stable debug signing keystore
+        run: |
+          printf "storePassword=android\nkeyPassword=android\nkeyAlias=androiddebugkey\nstoreFile=../keystores/johnfoods-debug.p12\n" > android/key.properties
+          keytool -list -v -keystore keystores/johnfoods-debug.p12 -storepass android -alias androiddebugkey 2>/dev/null | grep -m1 SHA1 || true
+
+      - run: flutter pub get
+
+      - name: Restore google-services.json (Google sign-in needs this)
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            printf '%s' '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+            echo "google-services.json restored"
+          else
+            echo "WARNING: GOOGLE_SERVICES_JSON secret missing - Google sign-in will fail at runtime (email login still works)"
+          fi
+
+      - name: Generate launcher icons from assets/icon/icon_1024.png
+        run: dart run flutter_launcher_icons
+
+      - name: Analyze
+        run: |
+          flutter analyze --no-fatal-infos --machine > /tmp/a.machine 2>&1 || true
+          # Emit each error as a GitHub annotation so it is readable from the
+          # run page and the checks API without authenticated log access.
+          while IFS= read -r line; do
+            echo "::error::$line"
+          done < <(grep "^ERROR" /tmp/a.machine || true)
+          grep "^ERROR" /tmp/a.machine > /dev/null 2>&1 && exit 1 || exit 0
+
+      - name: Test
+        run: flutter test
+        continue-on-error: true
+
+      - name: Build release APK
+        run: |
+          set -o pipefail
+          flutter build apk --release \
+            --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} \
+            --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }} \
+            2>&1 | tee /tmp/apk-build.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" != "0" ]; then
+            {
+              echo "## APK build output"
+              echo '```'
+              tail -80 /tmp/apk-build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$rc"
+          fi
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-build-log
+          path: /tmp/apk-build.log
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: john-foods-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Publish APK to latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: JohnFoods Android APK
+          files: build/app/outputs/flutter-apk/app-release.apk
+          prerelease: false
+          generate_release_notes: false

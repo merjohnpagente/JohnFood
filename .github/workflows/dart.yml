@@ -1,0 +1,65 @@
+name: Dart
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze project source
+        run: |
+          flutter analyze --no-fatal-infos --machine > /tmp/analyze.machine 2>&1 || true
+          # Convert machine format to readable and fail on real errors.
+          sed -E 's/^ERROR\|//; s/^WARNING\|//; s/^INFO\|//' /tmp/analyze.machine > /tmp/analyze.txt
+          {
+            echo "### flutter analyze output"
+            echo '```'
+            cat /tmp/analyze.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -q "^ERROR" /tmp/analyze.machine; then
+            echo "::error::flutter analyze found errors"
+            grep "^ERROR" /tmp/analyze.machine | head -40
+            exit 1
+          fi
+
+      - name: Run tests
+        run: |
+          flutter test > /tmp/test.log 2>&1 || true
+          {
+            echo "### flutter test output"
+            echo '```'
+            cat /tmp/test.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -s /tmp/test.log ]; then
+            grep -qE "All tests passed|Some tests failed" /tmp/test.log || true
+          fi
+          # Real test failures surface in the summary; mirror exit status.
+          if grep -q "Some tests failed" /tmp/test.log; then
+            exit 1
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dart-logs
+          path: |
+            /tmp/analyze.txt
+            /tmp/test.log

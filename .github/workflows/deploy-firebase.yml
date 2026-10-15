@@ -1,0 +1,75 @@
+name: Deploy Firestore rules (free, Spark plan)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'firebase.json'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Write service account
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing."
+            exit 1
+          fi
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+          node -e "const k=JSON.parse(require('fs').readFileSync('$RUNNER_TEMP/sa.json','utf8')); console.log('project:', k.project_id, '| email:', k.client_email);"
+
+      - name: Deploy Firestore rules and indexes
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          set -o pipefail
+          npx --yes firebase-tools@latest deploy \
+            --only firestore \
+            --project "${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --non-interactive 2>&1 | tee /tmp/deploy.log
+          rc=${PIPESTATUS[0]}
+          {
+            echo "exit code: $rc"
+            echo "commit: ${{ github.sha }}"
+            echo "project: $FIREBASE_PROJECT_ID"
+            echo
+            tail -80 /tmp/deploy.log
+          } > /tmp/report.txt
+          exit "$rc"
+
+      # The step log needs an authenticated download to read, which the
+      # maintainer of this repo does not have. Push the log to a throwaway
+      # branch so it can be fetched over plain git.
+      - name: Publish the deploy log to ci-debug branch
+        if: always()
+        run: |
+          mkdir -p ci-debug
+          cp /tmp/report.txt ci-debug/firestore-deploy.log 2>/dev/null || \
+            echo "no report captured" > ci-debug/firestore-deploy.log
+          git config user.name "ci-debug"
+          git config user.email "ci-debug@users.noreply.github.com"
+          git fetch origin ci-debug 2>/dev/null || true
+          if git rev-parse --verify origin/ci-debug >/dev/null 2>&1; then
+            git checkout -B ci-debug origin/ci-debug
+            cp ci-debug/firestore-deploy.log ci-debug/firestore-deploy.log.bak
+            git add -A ci-debug
+          else
+            git checkout --orphan ci-debug
+            git add -A ci-debug
+          fi
+          git commit -m "ci-debug: firestore deploy log ${{ github.sha }}" || true
+          git push -f origin ci-debug || true

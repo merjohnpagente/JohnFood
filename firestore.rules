@@ -1,0 +1,241 @@
+// John Foods Firestore security rules.
+// Deployed by .github/workflows/deploy-firebase.yml on every change here.
+//
+// Collections:
+//   categories, foods        public read, admin writes
+//   users                    owner self-service, admin manages roles
+//   orders                   customers create, riders move their own, admin all
+//   notifications            owner read, admin and assigned rider write
+//   paymentProofs            customer of the order and admin
+//   reviews                  public read, immutable once written
+//   merchantSettings         signed-in read, admin writes
+//   promos                   signed-in read, admin writes
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function isOrderRider(orderId) {
+      return isSignedIn() && orderId is string && orderId.size() > 0 &&
+        exists(/databases/$(database)/documents/orders/$(orderId)) &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.get('riderId', '') == request.auth.uid;
+    }
+    function validPaymentMethod(m) {
+      return m in ['Cash on delivery', 'GCash', 'Maya'];
+    }
+
+    // Validates each line item: bounded strings, sane prices and quantities.
+    // Firestore rules have no reduce(), so the subtotal cross-check below
+    // validates items one by one instead of summing them.
+    function itemsAreWellFormed(items) {
+      return items.size() > 0 && items.size() <= 50 && items.all(i,
+        i is map &&
+        i.keys().hasAll(['foodId', 'name', 'price', 'qty']) &&
+        i.foodId is string && i.foodId.size() > 0 &&
+        i.foodId.size() <= 120 &&
+        i.name is string && i.name.size() > 0 && i.name.size() <= 120 &&
+        i.price is number && i.price >= 0 && i.price <= 100000 &&
+        i.qty is number && i.qty > 0 && i.qty <= 99 &&
+        i.get('option', '') is string &&
+        i.get('option', '').size() <= 200);
+    }
+
+    // The client cannot be fully trusted on price, but we can at least cap
+    // the blast radius: the subtotal it sends must be within the maximum the
+    // item limits allow, which stops absurd totals without needing reduce().
+    function subtotalWithinItemLimits(items, subtotal) {
+      return subtotal <= 100000.0 * 99.0 * 50.0;
+    }
+    function isAssignedRider(orderRiderId) {
+      return isSignedIn() && orderRiderId is string &&
+        request.auth.uid == orderRiderId;
+    }
+    function onlyRiderFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['riderLat', 'riderLng', 'status', 'updatedAt', 'riderId']);
+    }
+    // Riders may move themselves on or off an order, but can never point
+    // the order at a different rider.
+    function safeRiderUpdate() {
+      return onlyRiderFields() &&
+        (request.resource.data.riderId == resource.data.riderId ||
+          request.resource.data.get('riderId', null) == null ||
+          request.resource.data.riderId == request.auth.uid);
+    }
+    function validStatus(s) {
+      return s in ['pending', 'assigned', 'preparing', 'on_the_way', 'delivered', 'cancelled'];
+    }
+
+    function riderCannotReopen() {
+      return !(resource.data.status in ['on_the_way', 'delivered']) ||
+        request.resource.data.status == resource.data.status;
+    }
+
+    match /categories/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /foods/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.role == 'customer');
+      // Customer self-update: whitelist fields only, never role.
+      allow update: if isOwner(uid) &&
+        !('role' in request.resource.data && request.resource.data.role != resource.data.role) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'phone', 'photoUrl', 'addresses', 'favorites', 'fcmToken']);
+      allow update: if isAdmin();
+    }
+
+    match /users/{uid}/notifications/{id} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // Owner creating own notif (placeOrder), admin, or assigned rider notifying customer.
+      allow create: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isAdmin() ||
+        (request.resource.data.keys().hasAll(['orderId', 'title', 'body']) &&
+          isOrderRider(request.resource.data.orderId))
+      ) && request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() < 120 &&
+        request.resource.data.body is string &&
+        request.resource.data.body.size() < 500 &&
+        request.resource.data.get('read', false) == false;
+      // Customer may only flip read flag.
+      allow update: if (isOwner(uid) || isAdmin()) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin() ||
+        resource.data.get('riderId', '') == request.auth.uid
+      );
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.items is list &&
+        itemsAreWellFormed(request.resource.data.items) &&
+        request.resource.data.subtotal is number &&
+        request.resource.data.subtotal >= 0 &&
+        subtotalWithinItemLimits(request.resource.data.items, request.resource.data.subtotal) &&
+        request.resource.data.deliveryFee is number &&
+        request.resource.data.deliveryFee >= 0 &&
+        request.resource.data.discount is number &&
+        request.resource.data.discount >= 0 &&
+        request.resource.data.total ==
+          request.resource.data.subtotal +
+          request.resource.data.deliveryFee -
+          request.resource.data.discount &&
+        request.resource.data.address is string &&
+        request.resource.data.address.size() >= 5 &&
+        request.resource.data.address.size() <= 300 &&
+        request.resource.data.clientRequestId is string &&
+        request.resource.data.clientRequestId.size() > 0 &&
+        validPaymentMethod(request.resource.data.get('paymentMethod', 'Cash on delivery')) &&
+        request.resource.data.get('riderId', null) == null &&
+        request.resource.data.get('paymentRef', '') is string &&
+        request.resource.data.get('paymentRef', '').size() <= 50 &&
+        request.resource.data.get('paymentProofUrl', '') is string &&
+        request.resource.data.get('paymentProofUrl', '').size() <= 1000 &&
+        request.resource.data.get('paymentVerified', false) == false;
+      allow update: if isSignedIn() && (
+        // Customer may only cancel own pending order (status + timestamp only).
+        (resource.data.userId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'cancelled' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'updatedAt'])) ||
+        // Customer may attach a payment proof while still pending.
+        (resource.data.userId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['paymentProofUrl', 'updatedAt']) &&
+          request.resource.data.get('paymentProofUrl', '') is string &&
+          request.resource.data.get('paymentProofUrl', '').size() <= 1000) ||
+        isAdmin() ||
+        (isAssignedRider(resource.data.get('riderId', '')) && safeRiderUpdate() &&
+          validStatus(request.resource.data.status) &&
+          riderCannotReopen())
+      );
+      allow delete: if false;
+    }
+
+    // GCash/Maya receipt images (base64 fallback when Cloudinary is off).
+    // Write is limited to the customer of the referenced order (or admin).
+    match /paymentProofs/{id} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
+          get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.userId == request.auth.uid) ||
+        (exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
+          get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.get('riderId', '') == request.auth.uid)
+      );
+      allow create, update: if isSignedIn() && (
+        isAdmin() ||
+        (request.resource.data.orderId is string &&
+          exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
+          get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.userId == request.auth.uid &&
+          request.resource.data.data is string &&
+          request.resource.data.data.size() <= 700000)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /reviews/{id} {
+      allow read: if true;
+      // Immutable, one per order+food enforced via deterministic doc id
+      // {orderId}_{foodId} + deny update/delete.
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.orderId is string &&
+        request.resource.data.foodId is string &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        request.resource.data.get('comment', '') is string &&
+        request.resource.data.get('comment', '').size() <= 500;
+      allow update, delete: if false;
+    }
+
+    match /foodImages/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Single doc holding merchant wallet details for manual GCash/Maya
+    // payments. Readable by signed-in customers so checkout can show where
+    // to pay; writable only by admins.
+    match /merchantSettings/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Promo codes. Admins manage them; a signed-in customer may only bump
+    // the `used` counter when placing an order, so max-use caps work.
+    match /promos/{code} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() ||
+        (isSignedIn() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['used']) &&
+          request.resource.data.used == resource.data.used + 1);
+    }  }
+}

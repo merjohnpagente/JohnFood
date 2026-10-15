@@ -1,0 +1,118 @@
+name: Build iOS app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/build-ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    # iOS builds need a macOS runner.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Bootstrap ios folder if missing
+        run: |
+          if [ ! -d ios ]; then
+            # Create every platform: flutter_launcher_icons is configured for
+            # android and ios in pubspec.yaml, so an ios-only tree makes it
+            # fail looking for the missing android res folder.
+            flutter create . --project-name john_foods --org com.merjdev.johnfoods
+          fi
+
+      - name: Set iOS bundle id and display name
+        run: |
+          sed -i '' 's/com\.merjdev\.johnfoods\.Runner/com.merjdev.johnfoods/g' ios/Runner.xcodeproj/project.pbxproj || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName John Foods" ios/Runner/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName JohnFoods" ios/Runner/Info.plist 2>/dev/null || true
+
+      - name: Add iOS permission strings
+        run: |
+          P=ios/Runner/Info.plist
+          add() {
+            /usr/libexec/PlistBuddy -c "Delete :$1" $P 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :$1 string $2" $P
+          }
+          # Geolocator: used for checkout GPS and rider tracking.
+          add NSLocationWhenInUseUsageDescription "John Foods uses your location to set your delivery pin and to show the rider's route."
+          add NSLocationAlwaysAndWhenInUseUsageDescription "John Foods uses your location in the background while you are on a delivery so the customer can follow your route."
+          # image_picker: attaching a payment receipt or a food photo.
+          add NSPhotoLibraryUsageDescription "John Foods needs photo access so you can attach a payment receipt screenshot."
+          add NSCameraUsageDescription "John Foods needs camera access so you can photograph a payment receipt."
+          add UIViewControllerBasedStatusBarAppearance false
+          # Google Sign-In uses its own URL scheme, declared below.
+          /usr/libexec/PlistBuddy -c "Print" $P
+
+      - name: Restore google-services.json for iOS
+        run: |
+          if [ -n "${{ secrets.IOS_GOOGLE_SERVICES_JSON }}" ]; then
+            printf '%s' '${{ secrets.IOS_GOOGLE_SERVICES_JSON }}' > ios/Runner/GoogleService-Info.plist
+            echo "GoogleService-Info.plist restored"
+          else
+            echo "WARNING: IOS_GOOGLE_SERVICES_JSON missing - Google sign-in will not work on iOS"
+          fi
+
+      - name: Check GoogleService-Info.plist is wired into the Runner target
+        run: |
+          if [ ! -f ios/Runner/GoogleService-Info.plist ]; then
+            echo "GoogleService-Info.plist absent: Google sign-in stays off on iOS, everything else works."
+          elif grep -q "GoogleService-Info.plist" ios/Runner.xcodeproj/project.pbxproj; then
+            echo "GoogleService-Info.plist referenced by the Xcode project"
+          else
+            echo "::warning::GoogleService-Info.plist exists but is not in the Xcode target. Add it to the Runner target or Google sign-in will fail on iOS."
+          fi
+
+      - run: flutter pub get
+
+      - name: Generate launcher icons
+        # Never block the build on the icon generator: a missing res folder
+        # is cosmetic, a failed build is not.
+        run: dart run flutter_launcher_icons || echo "::warning::launcher icons skipped"
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build iOS (no codesign)
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign \
+            --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} \
+            --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }} \
+            --dart-define=IOS_API_KEY=${{ secrets.IOS_API_KEY }} \
+            --dart-define=IOS_APP_ID=${{ secrets.IOS_APP_ID }} \
+            --dart-define=IOS_MESSAGING_SENDER_ID=${{ secrets.IOS_MESSAGING_SENDER_ID }} \
+            --dart-define=IOS_STORAGE_BUCKET=${{ secrets.IOS_STORAGE_BUCKET }} \
+            2>&1 | tee /tmp/ios-build.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-log
+          path: /tmp/ios-build.log
+
+      - name: Upload iOS app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: john-foods-ios
+          path: build/ios/iphoneos/Runner.app
+          retention-days: 7

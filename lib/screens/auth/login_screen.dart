@@ -1,0 +1,222 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import '../../app_info.dart';
+import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/motion.dart';
+import '../../utils/error_mapper.dart';
+import '../../utils/responsive.dart';
+import '../../utils/validators.dart';
+import '../../widgets/ui_kit.dart';
+import 'forgot_screen.dart';
+import 'register_screen.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _form = GlobalKey<FormState>();
+  final _email = TextEditingController();
+  final _pw = TextEditingController();
+  bool _obscure = true;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _pw.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await AuthService().signIn(_email.text, _pw.text);
+    } catch (e) {
+      setState(() => _error = friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _google() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await AuthService().signInWithGoogle();
+    } on FirebaseAuthException catch (e) {
+      // User dismissed the Google picker: stay silent, no error shown.
+      if (e.code != 'cancelled') {
+        debugPrint('Google sign-in failed: ${e.code} ${e.message}');
+        setState(() => _error = friendlyError(e));
+      }
+    } catch (e) {
+      debugPrint('Google sign-in failed: $e');
+      setState(() => _error = friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (_, vp) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: vp.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: Padding(
+              padding: EdgeInsets.all(context.pagePadding),
+              child: Form(
+                key: _form,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    const Center(child: Entrance(child: BrandLogo(size: 72, iconSize: 38))),
+                    const SizedBox(height: 16),
+                    const Entrance(
+                      delay: Duration(milliseconds: 60),
+                      child: Text(kAppName,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5)),
+                    ),
+                    const SizedBox(height: 4),
+                    const Entrance(
+                      delay: Duration(milliseconds: 120),
+                      child: Text('Sign in to order your favorites',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 14, color: AppColors.muted)),
+                    ),
+                    const SizedBox(height: 24),
+                    if (_error != null)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                            color: AppColors.errorBg,
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                color: AppColors.error, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(_error!)),
+                          ],
+                        ),
+                      ),
+                    Entrance(
+                      delay: const Duration(milliseconds: 160),
+                      child: AppTextField(
+                        controller: _email,
+                        label: 'Email address',
+                        hint: 'Email address',
+                        prefix: const Icon(Icons.mail_outline_rounded,
+                            color: AppColors.muted, size: 20),
+                        validator: validateEmail,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Entrance(
+                      delay: const Duration(milliseconds: 200),
+                      child: AppTextField(
+                        controller: _pw,
+                        label: 'Password',
+                        hint: 'Password',
+                        prefix: const Icon(Icons.lock_outline_rounded,
+                            color: AppColors.muted, size: 20),
+                        validator: (v) => validatePassword(v, allowShort: true),
+                        obscure: _obscure,
+                        textInputAction: TextInputAction.done,
+                        suffix: IconButton(
+                          icon: Icon(_obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.push(
+                            context, slideRoute(const ForgotScreen())),
+                        child: const Text('Forgot password?',
+                            style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    PrimaryButton(
+                        label: 'Log In', loading: _loading, onPressed: _login),
+                    const SizedBox(height: 16),
+                    const OrDivider(),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: _loading ? null : _google,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(48, 52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Continue with Google',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.ink)),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("Don't have an account? ",
+                            style: TextStyle(color: AppColors.muted)),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap),
+                          onPressed: () => Navigator.push(
+                              context, slideRoute(const RegisterScreen())),
+                          child: const Text('Sign up',
+                              style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+    ),
+    ),
+  );
+  }
+}
