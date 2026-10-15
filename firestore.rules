@@ -1,3 +1,5 @@
+// John Foods Firestore security rules.
+// Deployed by .github/workflows/deploy-firebase.yml on every change here.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
