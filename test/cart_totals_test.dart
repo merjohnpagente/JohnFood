@@ -109,8 +109,8 @@ void main() {
 
   test('Cart item key distinguishes options', () {
     expect(
-      CartItem(food: _food, option: 'Regular').key,
-      isNot(CartItem(food: _food, option: 'Large').key),
+      CartItem(food: _food, selectedOption: 'Regular').key,
+      isNot(CartItem(food: _food, selectedOption: 'Large').key),
     );
   });
 }

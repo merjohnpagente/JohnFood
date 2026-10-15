@@ -32,7 +32,10 @@ jobs:
       - name: Bootstrap ios folder if missing
         run: |
           if [ ! -d ios ]; then
-            flutter create . --project-name john_foods --org com.merjdev.johnfoods --platforms=ios
+            # Create every platform: flutter_launcher_icons is configured for
+            # android and ios in pubspec.yaml, so an ios-only tree makes it
+            # fail looking for the missing android res folder.
+            flutter create . --project-name john_foods --org com.merjdev.johnfoods
           fi
 
       - name: Set iOS bundle id and display name
@@ -80,7 +83,9 @@ jobs:
       - run: flutter pub get
 
       - name: Generate launcher icons
-        run: dart run flutter_launcher_icons
+        # Never block the build on the icon generator: a missing res folder
+        # is cosmetic, a failed build is not.
+        run: dart run flutter_launcher_icons || echo "::warning::launcher icons skipped"
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos

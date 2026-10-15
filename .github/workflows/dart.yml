@@ -22,7 +22,22 @@ jobs:
         run: flutter pub get
 
       - name: Analyze project source
-        run: flutter analyze --no-fatal-infos
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee /tmp/analyze.log
+          echo "$?" > /tmp/analyze.rc
+
+      - name: Upload analyze log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analyze-log
+          path: /tmp/analyze.log
+
+      - name: Fail if analyzer found errors
+        run: |
+          # Re-run quietly to get the exit code without re-printing.
+          flutter analyze --no-fatal-infos > /dev/null 2>&1
 
       - name: Run tests
         run: flutter test
