@@ -8,6 +8,7 @@ import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/motion.dart';
 import '../../utils/formatters.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/ui_kit.dart';
@@ -39,6 +40,10 @@ class _RiderScreenState extends State<RiderScreen> {
 
   String _short(String id) =>
       id.length > 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
+
+  /// createdAt as epoch milliseconds, missing dates sort last.
+  static int _millis(QueryDocumentSnapshot<Map<String, dynamic>> d) =>
+      (d.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
 
   /// Sort rank: work in progress first, finished orders last.
   int _rank(QueryDocumentSnapshot<Map<String, dynamic>> d) {
@@ -368,12 +373,9 @@ class _RiderScreenState extends State<RiderScreen> {
             // New work first: active statuses above finished ones, then
             // newest first inside each group.
             final sorted = [...docs]..sort((a, b) {
-                final rank = _rank(a) .compareTo(_rank(b));
+                final rank = _rank(a).compareTo(_rank(b));
                 if (rank != 0) return rank;
-                return (b.data()['createdAt'] as Timestamp?)
-                        ?.compareTo(
-                            a.data()['createdAt'] as Timestamp?) ??
-                    0;
+                return _millis(b).compareTo(_millis(a));
               });
             return ListView.builder(
               padding: const EdgeInsets.all(16),

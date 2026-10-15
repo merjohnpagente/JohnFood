@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/foundation.dart';
 import '../models/order.dart';
 import '../services/order_service.dart';
@@ -110,7 +110,9 @@ class AdminProvider extends ChangeNotifier {
       q = q.where('createdAt',
           isGreaterThanOrEqualTo: Timestamp.fromDate(from));
     }
-    final snap = await q.select('total').sum('total').get();
+    // cloud_firestore exposes sum() directly on the query; there is no
+    // select() step, that was the old platform-interface shape.
+    final snap = await q.sum('total').get();
     return (snap.data ?? 0).toDouble();
   }
 

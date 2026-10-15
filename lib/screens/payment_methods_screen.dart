@@ -153,7 +153,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                               ready
                                   ? (wallet.isEmpty
                                       ? meta.$2
-                                      : '$meta.$2  ($wallet)')
+                                      : '${meta.$2}  ($wallet)')
                                   : 'Unavailable right now',
                               style: TextStyle(
                                   color: ready

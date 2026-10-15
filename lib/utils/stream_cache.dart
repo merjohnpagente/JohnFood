@@ -23,7 +23,7 @@ class StreamCache {
 
   /// Entries are kept for a short while so navigating back to a screen does
   /// not refetch, but a long session does not pin queries forever.
-  static const Duration ttl = Duration(miniseconds: 30);
+  static const Duration ttl = Duration(milliseconds: 30);
 
   /// Returns the cached stream for [key], creating it with [factory] on a
   /// miss or once the previous entry went stale.
