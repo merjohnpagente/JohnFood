@@ -54,13 +54,11 @@ jobs:
             --non-interactive 2>&1 | tee /tmp/deploy.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" != "0" ]; then
-            echo "### Firestore deploy log"
-            echo '```'
-            tail -60 /tmp/deploy.log
-            echo '```'
-            TITLE="Firestore deploy failed ${{ github.sha }}"
-            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-              gh issue create --title "$TITLE" \
-                --body "$(printf '### Firestore deploy log\n\n```\n%s\n```\n' "$(tail -60 /tmp/deploy.log)")" || true
+            # Emit every error line as a GitHub annotation. These show on the
+            # run page and in the checks API without any authenticated call.
+            grep -iE "error|denied|invalid|failed|exception" /tmp/deploy.log \
+              | head -12 | while IFS= read -r line; do
+                echo "::error file=firestore.rules,title=Firestore deploy::${line}"
+              done
             exit "$rc"
           fi
