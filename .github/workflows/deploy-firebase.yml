@@ -9,6 +9,10 @@ on:
       - 'firestore.indexes.json'
       - 'firebase.json'
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -25,8 +29,21 @@ jobs:
       - name: Deploy Firestore rules and indexes
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
-        run: >
-          npx --yes firebase-tools@latest deploy
-          --only firestore
-          --project ${{ secrets.FIREBASE_PROJECT_ID }}
-          --non-interactive
+        run: |
+          set -o pipefail
+          npx --yes firebase-tools@latest deploy \
+            --only firestore \
+            --project "${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --non-interactive 2>&1 | tee /tmp/deploy.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" != "0" ]; then
+            echo "### Firestore deploy log"
+            echo '```'
+            tail -60 /tmp/deploy.log
+            echo '```'
+            TITLE="Firestore deploy failed ${{ github.sha }}"
+            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+              gh issue create --title "$TITLE" \
+                --body "$(printf '### Firestore deploy log\n\n```\n%s\n```\n' "$(tail -60 /tmp/deploy.log)")" || true
+            exit "$rc"
+          fi
