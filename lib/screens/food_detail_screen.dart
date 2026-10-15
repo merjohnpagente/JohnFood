@@ -49,9 +49,7 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final menu = context.watch<MenuProvider>();
-    final food = menu.foods.where((f) => f.id == widget.foodId).isNotEmpty
-        ? menu.foods.firstWhere((f) => f.id == widget.foodId)
-        : null;
+    final food = menu.foodById(widget.foodId);
     if (food == null) {
       return Scaffold(
         appBar: AppBar(),

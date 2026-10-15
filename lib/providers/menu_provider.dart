@@ -75,6 +75,15 @@ class MenuProvider extends ChangeNotifier {
     _apply();
   }
 
+  /// Looks a food up in the full catalogue, not the filtered view, so a
+  /// detail page still resolves when the food is outside the active filter.
+  Food? foodById(String id) {
+    for (final f in _all) {
+      if (f.id == id) return f;
+    }
+    return null;
+  }
+
   /// Popular picks sorted by rating, used by the home banners.
   List<Food> popular(int count) {
     final sorted = [..._all]..sort((a, b) => b.rating.compareTo(a.rating));

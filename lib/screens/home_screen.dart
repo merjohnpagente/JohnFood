@@ -20,8 +20,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// Index into the category bar, where 0 is "All".
   int _selected = 0;
-  bool _hydrated = false;
 
   void _openDetail(BuildContext context, String foodId) {
     Navigator.push(
@@ -47,16 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
     // menu.foods is already filtered by category and search in the provider.
     final filtered = menu.foods;
     final popularPicks = menu.popular(6);
-    if (!_hydrated && menu.foods.isNotEmpty) {
-      // Restore the saved cart once the menu is available.
-      // Post-frame so notifyListeners never fires during build.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final done =
-            context.read<CartProvider>().hydrate(menu.foods);
-        if (done && mounted) setState(() => _hydrated = true);
-      });
-    }
 
     return Scaffold(
       body: ContentWidth(

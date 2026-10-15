@@ -123,6 +123,7 @@ class _AdminShellState extends State<AdminShell> {
                         showDragHandle: true,
                         builder: (_) => AdminMoreSheet(
                           onPick: (index) => setState(() => _i = index),
+                          onLogout: _logout,
                         ),
                       );
                       return;
@@ -173,8 +174,9 @@ class _AdminBody extends StatelessWidget {
 
 /// Sheet listing the admin sections that did not fit in the bottom bar.
 class AdminMoreSheet extends StatelessWidget {
-  const AdminMoreSheet({required this.onPick, super.key});
+  const AdminMoreSheet({required this.onPick, required this.onLogout, super.key});
   final void Function(int index) onPick;
+  final VoidCallback onLogout;
 
   static const _extra = [
     (Icons.local_offer_outlined, 'Promo codes'),
@@ -184,7 +186,6 @@ class AdminMoreSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shell = context.findAncestorStateOfType<_AdminShellState>();
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -199,16 +200,15 @@ class AdminMoreSheet extends StatelessWidget {
                 onPick(i + 4);
               },
             ),
-          if (shell != null)
-            ListTile(
-              leading: const Icon(Icons.logout_rounded,
-                  color: AppColors.error),
-              title: const Text('Logout'),
-              onTap: () {
-                Navigator.pop(context);
-                shell._logout();
-              },
-            ),
+          ListTile(
+            leading:
+                const Icon(Icons.logout_rounded, color: AppColors.error),
+            title: const Text('Logout'),
+            onTap: () {
+              Navigator.pop(context);
+              onLogout();
+            },
+          ),
           const SizedBox(height: 8),
         ],
       ),

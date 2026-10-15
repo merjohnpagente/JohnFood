@@ -1,5 +1,41 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../models/order.dart';
+import '../services/order_service.dart';
+
+/// The customer's own orders, split into what is still in progress and what
+/// is history. Backed by the cached stream in [OrderService] so the orders
+/// tab does not refetch on every rebuild.
+class OrdersProvider extends ChangeNotifier {
+  final OrderService _service = OrderService();
+  List<Order> orders = const [];
+  bool loading = true;
+  String _watching = '';
+
+  void watch(String uid) {
+    if (uid.isEmpty || uid == _watching) return;
+    _watching = uid;
+    _service.watchUserOrders(uid).listen((o) {
+      orders = o;
+      loading = false;
+      notifyListeners();
+    }, onError: (_) {
+      loading = false;
+      notifyListeners();
+    });
+  }
+
+  List<Order> get active => orders
+      .where((o) =>
+          o.status == 'pending' ||
+          o.status == 'assigned' ||
+          o.status == 'preparing' ||
+          o.status == 'on_the_way')
+      .toList();
+
+  List<Order> get history =>
+      orders.where((o) => !active.contains(o)).toList();
+}
 
 /// Dashboard figures use Firestore aggregation queries, which cost one read
 /// no matter how many orders they scan. Reading the orders to sum them in
@@ -74,7 +110,7 @@ class AdminProvider extends ChangeNotifier {
       q = q.where('createdAt',
           isGreaterThanOrEqualTo: Timestamp.fromDate(from));
     }
-    final snap = await q.select(total).sum('total').get();
+    final snap = await q.select('total').sum('total').get();
     return (snap.data ?? 0).toDouble();
   }
 

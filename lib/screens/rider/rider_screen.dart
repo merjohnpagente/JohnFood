@@ -432,24 +432,23 @@ class _RiderScreenState extends State<RiderScreen> {
                                   child: Text(customerName,
                                       style: const TextStyle(
                                           fontSize: 14,
-                                          fontWeight:
-                                              FontWeight.w600)),
+                                          fontWeight: FontWeight.w600)),
                                 ),
-                              ],
-                              if (payable)
-                                Text(
-                                  m['paymentVerified'] == true
-                                      ? 'Paid'
-                                      : 'Verify first',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: m['paymentVerified'] == true
-                                        ? AppColors.success
-                                        : AppColors.warning,
+                                if (payable)
+                                  Text(
+                                    m['paymentVerified'] == true
+                                        ? 'Paid'
+                                        : 'Verify first',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: m['paymentVerified'] == true
+                                          ? AppColors.success
+                                          : AppColors.warning,
+                                    ),
                                   ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ],
                           const SizedBox(height: 4),
                           Row(

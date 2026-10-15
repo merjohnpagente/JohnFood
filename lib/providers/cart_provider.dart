@@ -22,11 +22,10 @@ class CartProvider extends ChangeNotifier {
   double get subtotal => calcSubtotal(items);
   double get deliveryFee => items.isEmpty ? 0 : calcDeliveryFee(subtotal);
   double get total => calcTotal(subtotal, deliveryFee, discount);
+  /// The saved cart is restored in the constructor with full food
+  /// snapshots, so nothing needs to be hydrated later. Kept as a no-op
+  /// because callers used to wait on it.
   bool get restored => _restored;
-
-  /// Compat hook used by HomeScreen: restoration from disk happens
-  /// automatically (full food snapshots), so this just reports
-  /// whether the disk load finished. Safe to call on every build.
   bool hydrate(List<Food> foods) => _restored;
 
   void add(Food food, {String option = '', int qty = 1}) {
