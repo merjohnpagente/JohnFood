@@ -24,20 +24,39 @@ jobs:
       - name: Analyze project source
         run: |
           set -o pipefail
-          flutter analyze --no-fatal-infos 2>&1 | tee /tmp/analyze.log
-          echo "$?" > /tmp/analyze.rc
+          flutter analyze --no-fatal-infos > /tmp/analyze.log 2>&1 || true
+          {
+            echo "## flutter analyze"
+            echo '```'
+            cat /tmp/analyze.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload analyze log
+      - name: Run tests
+        run: |
+          set -o pipefail
+          flutter test > /tmp/test.log 2>&1 || true
+          {
+            echo "## flutter test"
+            echo '```'
+            cat /tmp/test.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: analyze-log
-          path: /tmp/analyze.log
+          name: dart-logs
+          path: |
+            /tmp/analyze.log
+            /tmp/test.log
 
-      - name: Fail if analyzer found errors
+      - name: Enforce analyzer result
         run: |
-          # Re-run quietly to get the exit code without re-printing.
-          flutter analyze --no-fatal-infos > /dev/null 2>&1
-
-      - name: Run tests
-        run: flutter test
+          # Grep for real errors and fail only on those, mirroring
+          # `flutter analyze` exit status without re-running it.
+          if grep -qE "^\s*error •" /tmp/analyze.log; then
+            cat /tmp/analyze.log
+            exit 1
+          fi
