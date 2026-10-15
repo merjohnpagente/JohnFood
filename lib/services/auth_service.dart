@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../config.dart';
 import '../firebase_options.dart';
+import '../utils/stream_cache.dart';
+import 'menu_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -206,5 +208,9 @@ class AuthService {
       // Not a Google session — safe to ignore.
     }
     await _auth.signOut();
+    // Drop cached streams so a different account never sees the previous
+    // user's menu, orders or notifications.
+    StreamCache.clear();
+    MenuService.invalidate();
   }
 }

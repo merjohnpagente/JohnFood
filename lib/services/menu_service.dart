@@ -1,44 +1,67 @@
-import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/sample_data.dart';
 import '../models/category.dart';
 import '../models/food.dart';
+import '../utils/stream_cache.dart';
 
+/// The menu changes rarely, so it is fetched once and held in memory.
+///
+/// Reads are the scarce resource on the free plan (50k/day), so:
+/// * categories and the full available catalogue are read once per session,
+///   not once per category switch;
+/// * filtering and searching happen on the device, costing zero reads.
+///
+/// Firestore `snapshots()` streams are broadcast streams, so several widgets
+/// can listen to the cached instance safely.
 class MenuService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  Stream<List<Category>> watchCategories() {
-    return _db.collection('categories').orderBy('order').snapshots().map(
-      (s) {
-        if (s.docs.isEmpty) {
-          return sampleCategories
-              .map((c) => Category(id: c.id, name: c.name, icon: c.icon, order: c.order))
-              .toList();
-        }
-        return s.docs.map(Category.fromDoc).toList();
-      },
-    );
+  /// Last successful catalogue, used to answer searches and category
+  /// switches without touching the network.
+  List<Food> _cache = const [];
+
+  Stream<List<Category>> watchCategories() =>
+      StreamCache.of('menu:categories', () {
+        return _db
+            .collection('categories')
+            .orderBy('order')
+            .snapshots()
+            .map((s) => s.docs.map(Category.fromDoc).toList());
+      });
+
+  /// The whole available menu, ordered by name. Category filtering is done
+  /// by the caller, so switching tabs costs nothing.
+  Stream<List<Food>> watchFoods() => StreamCache.of('menu:foods', () {
+        return _db
+            .collection('foods')
+            .where('available', isEqualTo: true)
+            .orderBy('name')
+            .snapshots()
+            .map((s) {
+          final docs = s.docs;
+          if (docs.isEmpty) return _sampleFoods();
+          final list = docs.map(Food.fromDoc).toList();
+          _cache = list;
+          return list;
+        });
+      });
+
+  /// Client-side search over the cached catalogue: no Firestore read.
+  Future<List<Food>> searchFoods(String query) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return [];
+    final source = _cache.isEmpty ? await watchFoods().first : _cache;
+    return source
+        .where((f) =>
+            f.name.toLowerCase().contains(q) ||
+            f.description.toLowerCase().contains(q))
+        .toList();
   }
 
-  /// Live menu. [limit] is generous on purpose: a small restaurant menu is a
-  /// few dozen items, and truncating it hid most of the catalogue.
-  Stream<List<Food>> watchFoods({String? category, int limit = 200}) {
-    Query<Map<String, dynamic>> q = _db
-        .collection('foods')
-        .where('available', isEqualTo: true)
-        .orderBy('name')
-        .limit(limit);
-    if (category != null && category.isNotEmpty) {
-      q = _db
-          .collection('foods')
-          .where('category', isEqualTo: category)
-          .where('available', isEqualTo: true)
-          .orderBy('name')
-          .limit(limit);
-    }
-    return q.snapshots().map((s) {
-      if (s.docs.isEmpty) {
-        final all = sampleFoods.map(
-          (f) => Food(
+  /// Shown only when the database has no menu yet, so a fresh install is not
+  /// an empty screen. Never written to Firestore automatically.
+  static List<Food> _sampleFoods() => sampleFoods
+      .map((f) => Food(
             id: f.id,
             name: f.name,
             description: f.description,
@@ -49,53 +72,19 @@ class MenuService {
             category: f.category,
             deliveryTime: f.deliveryTime,
             available: true,
-          ),
-        );
-        if (category == null || category.isEmpty) return all.toList();
-        return all.where((f) => f.category == category).toList();
-      }
-      return s.docs.map(Food.fromDoc).toList();
-    });
-  }
+          ))
+      .toList();
 
-  Future<List<Food>> searchFoods(String query) async {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return [];
-    final snap = await _db
-        .collection('foods')
-        .where('available', isEqualTo: true)
-        .limit(200)
-        .get();
-    if (snap.docs.isEmpty) {
-      return sampleFoods
-          .where((f) =>
-              f.name.toLowerCase().contains(q) ||
-              f.description.toLowerCase().contains(q))
-          .map(
-            (f) => Food(
-              id: f.id,
-              name: f.name,
-              description: f.description,
-              price: f.price,
-              rating: f.rating,
-              ratingCount: 50,
-              image: f.image,
-              category: f.category,
-              deliveryTime: f.deliveryTime,
-              available: true,
-            ),
-          )
-          .toList();
-    }
-    return snap.docs
-        .map(Food.fromDoc)
-        .where((f) =>
-            f.name.toLowerCase().contains(q) ||
-            f.description.toLowerCase().contains(q))
-        .toList();
-  }
+  static List<Category> sampleCategoriesList() => sampleCategories
+      .map((c) =>
+          Category(id: c.id, name: c.name, icon: c.icon, order: c.order))
+      .toList();
 
-  /// Admin-only: writes sample menu into Firestore in batches.
+  /// Drops the cached catalogue so the next read hits Firestore. Called by
+  /// the admin screens after writing the menu.
+  static void invalidate() => StreamCache.invalidatePrefix('menu:');
+
+  /// Admin-only: writes the sample menu into Firestore in batches.
   Future<void> importSampleMenu() async {
     final batch = _db.batch();
     for (final c in sampleCategories) {
@@ -120,5 +109,6 @@ class MenuService {
       });
     }
     await batch.commit();
+    invalidate();
   }
 }

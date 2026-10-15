@@ -84,3 +84,6 @@ These are real and not fixable on the free Spark plan:
 - **iOS builds unsigned.** `flutter build ios --no-codesign` verifies the
   build; App Store distribution needs an Apple Developer account.
 - **No crash reporting.** Failures are only visible in the CI logs.
+- **Daily read and write quotas bound the user count.** See
+  `LOAD_TESTING.md` for the real per-screen numbers; roughly 150 to 200 daily
+  active users fit in the free plan once the menu is cached per session.

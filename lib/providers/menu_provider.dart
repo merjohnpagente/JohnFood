@@ -1,87 +1,88 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart' hide Category;
+
 import '../models/category.dart';
 import '../models/food.dart';
 import '../services/menu_service.dart';
 
+/// Holds the menu in memory and filters on the device. Switching category or
+/// typing a search no longer issues a Firestore query, which is what keeps
+/// the app inside the free plan's daily read quota.
 class MenuProvider extends ChangeNotifier {
   final MenuService _service = MenuService();
-  List<Category> categories = [];
-  List<Food> foods = [];
+
+  /// Everything the server offered, unfiltered.
+  List<Food> _all = const [];
+  List<Category> categories = const [];
+  List<Food> foods = const [];
+
   bool loading = true;
-  String? error;
   bool offline = false;
   String query = '';
   String selectedCategory = '';
-  Timer? _debounce;
-  StreamSubscription? _catSub;
-  StreamSubscription? _foodSub;
+
+  StreamSubscription<List<Category>>? _catSub;
+  StreamSubscription<List<Food>>? _foodSub;
 
   MenuProvider() {
     _catSub = _service.watchCategories().listen((c) {
-      categories = c;
-      notifyListeners();
+      categories = c.isEmpty ? MenuService.sampleCategoriesList() : c;
+      _apply();
     }, onError: (_) {
+      categories = MenuService.sampleCategoriesList();
       offline = true;
-      notifyListeners();
+      _apply();
     });
+
     _foodSub = _service.watchFoods().listen((f) {
-      foods = f;
+      _all = f;
       loading = false;
-      notifyListeners();
+      _apply();
     }, onError: (_) {
       loading = false;
       offline = true;
-      notifyListeners();
+      _apply();
     });
+  }
+
+  /// Recomputes the visible list. Purely local, so it is safe to call on
+  /// every keystroke.
+  void _apply() {
+    var list = _all;
+    if (selectedCategory.isNotEmpty) {
+      list = list.where((f) => f.category == selectedCategory).toList();
+    }
+    final q = query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list
+          .where((f) =>
+              f.name.toLowerCase().contains(q) ||
+              f.description.toLowerCase().contains(q))
+          .toList();
+    }
+    foods = list;
+    notifyListeners();
   }
 
   void onSearch(String q) {
     query = q;
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () async {
-      if (q.trim().isEmpty) {
-        try {
-          foods = await _service
-              .watchFoods(
-                  category: selectedCategory.isEmpty ? null : selectedCategory)
-              .first;
-        } catch (_) {
-          offline = true;
-        }
-        notifyListeners();
-        return;
-      }
-      try {
-        foods = await _service.searchFoods(q);
-      } catch (_) {
-        offline = true;
-      }
-      notifyListeners();
-    });
+    _apply();
   }
 
   void selectCategory(String id) {
     selectedCategory = id;
-    loading = true;
-    notifyListeners();
-    _service
-        .watchFoods(category: id.isEmpty ? null : id)
-        .first
-        .then((f) {
-      foods = f;
-      loading = false;
-      notifyListeners();
-    }).catchError((_) {
-      loading = false;
-      offline = true;
-      notifyListeners();
-    });
+    _apply();
+  }
+
+  /// Popular picks sorted by rating, used by the home banners.
+  List<Food> popular(int count) {
+    final sorted = [..._all]..sort((a, b) => b.rating.compareTo(a.rating));
+    return sorted.take(count).toList();
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _catSub?.cancel();
     _foodSub?.cancel();
     super.dispose();

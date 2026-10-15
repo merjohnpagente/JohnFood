@@ -44,12 +44,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final pad = context.pagePadding;
     final uid = auth.user?.uid ?? '';
     final labels = ['All', ...menu.categories.map((c) => c.name)];
-    final filtered = menu.selectedCategory.isEmpty
-        ? menu.foods
-        : menu.foods.where((f) => f.category == menu.selectedCategory).toList();
-    final popular = [...menu.foods]
-      ..sort((a, b) => b.rating.compareTo(a.rating));
-    final popularPicks = popular.take(6).toList();
+    // menu.foods is already filtered by category and search in the provider.
+    final filtered = menu.foods;
+    final popularPicks = menu.popular(6);
     if (!_hydrated && menu.foods.isNotEmpty) {
       // Restore the saved cart once the menu is available.
       // Post-frame so notifyListeners never fires during build.

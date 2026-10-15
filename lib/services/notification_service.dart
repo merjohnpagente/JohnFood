@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/review.dart' show AppNotification;
+import '../utils/stream_cache.dart';
 
 class NotificationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -30,19 +31,23 @@ class NotificationService {
     await androidImpl?.requestNotificationsPermission();
   }
 
+  /// Cached per uid: building this inline in a StreamBuilder would
+  /// otherwise resubscribe, and refetch, on every rebuild.
   Stream<List<AppNotification>> watch(String uid) {
     if (uid.isEmpty) return const Stream.empty();
-    return _db
-        .collection('users')
-        .doc(uid)
-        .collection('notifications')
-        .orderBy('createdAt', descending: true)
-        .limit(30)
-        .snapshots()
-        .map((s) => s.docs
-            .map((d) => AppNotification.fromDoc(
-                d as DocumentSnapshot<Map<String, dynamic>>))
-            .toList());
+    return StreamCache.of('notifs:$uid', () {
+      return _db
+          .collection('users')
+          .doc(uid)
+          .collection('notifications')
+          .orderBy('createdAt', descending: true)
+          .limit(30)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => AppNotification.fromDoc(
+                  d as DocumentSnapshot<Map<String, dynamic>>))
+              .toList());
+    });
   }
 
   /// Fires a local alert. Safe to call often; never throws to the caller.

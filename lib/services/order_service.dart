@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import '../models/cart_item.dart';
 import '../models/order.dart';
+import '../utils/stream_cache.dart';
 import 'promo_service.dart';
 
 double calcSubtotal(List<CartItem> items) =>
@@ -55,32 +56,51 @@ class OrderService {
     return s.docs.map(Order.fromDoc).toList();
   }
 
+  /// Cached per uid. Without the cache the orders tab would resubscribe, and
+  /// refetch, on every rebuild.
   Stream<List<Order>> watchUserOrders(String uid, {bool activeOnly = false}) {
-    Query<Map<String, dynamic>> q = _db
-        .collection('orders')
-        .where('userId', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
-        .limit(30);
-    return q.snapshots().map((s) {
-      var list = s.docs.map(Order.fromDoc).toList();
-      if (activeOnly) {
-        list = list
-            .where((o) =>
-                o.status == 'pending' ||
-                o.status == 'assigned' ||
-                o.status == 'preparing' ||
-                o.status == 'on_the_way')
-            .toList();
-      }
-      return list;
+    if (uid.isEmpty) return const Stream.empty();
+    return StreamCache.of('orders:$uid:$activeOnly', () {
+      return _db
+          .collection('orders')
+          .where('userId', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(30)
+          .snapshots()
+          .map((s) {
+        var list = s.docs.map(Order.fromDoc).toList();
+        if (activeOnly) {
+          list = list
+              .where((o) =>
+                  o.status == 'pending' ||
+                  o.status == 'assigned' ||
+                  o.status == 'preparing' ||
+                  o.status == 'on_the_way')
+              .toList();
+        }
+        return list;
+      });
     });
   }
 
-  Stream<Order?> watchOrder(String orderId) => _db
-      .collection('orders')
-      .doc(orderId)
-      .snapshots()
-      .map((d) => d.exists ? Order.fromDoc(d) : null);
+  /// Cached per order id. The tracking screen rebuilds on every rider
+  /// position update; without the cache each rebuild would resubscribe and
+  /// refetch the order document.
+  Stream<Order?> watchOrder(String orderId) =>
+      StreamCache.of('order:$orderId', () {
+        return _db
+            .collection('orders')
+            .doc(orderId)
+            .snapshots()
+            .map((d) => d.exists ? Order.fromDoc(d) : null);
+      });
+
+  /// Drops a cached order stream so the next watch refetches.
+  static void invalidateOrder(String orderId) =>
+      StreamCache.invalidate('order:$orderId');
+
+  static void invalidateUserOrders(String uid) =>
+      StreamCache.invalidatePrefix('orders:$uid:');
 
   /// Places an order + notification entry atomically (no Cloud Functions).
   /// Idempotent via [clientRequestId]: retrying with the same id returns

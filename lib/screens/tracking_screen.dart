@@ -28,6 +28,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   LatLng? _lastRider;
   String? _lastStatus;
   bool _follow = false;
+  bool _routePending = false;
+  bool _routedForDelivery = false;
 
   static const _steps = ['pending', 'preparing', 'on_the_way', 'delivered'];
   static const _labels = ['Confirmed', 'Preparing', 'On the way', 'Delivered'];
@@ -170,14 +172,31 @@ class _TrackingScreenState extends State<TrackingScreen> {
             } catch (_) {}
           }
           _lastStatus = o.status;
-          // Refresh the route when the rider has moved on.
-          if (rider != null &&
+          // Route refresh, guarded so a moving rider cannot queue requests
+          // against the public OSRM server. Runs after the frame instead of
+          // during build.
+          final needsRoute = rider != null &&
+              !_routePending &&
               (_route == null ||
                   _routedFrom == null ||
-                  const Distance()(_routedFrom!, rider) > 300)) {
-            _routedFrom = rider;
-            _loc.route(rider, dest).then((r) {
-              if (mounted) setState(() => _route = r);
+                  o.status == 'on_the_way' && !_routedForDelivery ||
+                  const Distance()(_routedFrom!, rider) > 1000);
+          if (needsRoute) {
+            _routePending = true;
+            if (o.status == 'on_the_way') _routedForDelivery = true;
+            final from = rider;
+            final target = dest;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _loc.route(from, target).then((r) {
+                if (!mounted) return;
+                setState(() {
+                  _route = r;
+                  _routedFrom = from;
+                  _routePending = false;
+                });
+              }).catchError((_) {
+                _routePending = false;
+              });
             });
           }
           // Keep the rider marker centred while following.

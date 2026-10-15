@@ -18,9 +18,22 @@ class AllFoodsScreen extends StatefulWidget {
 class _AllFoodsScreenState extends State<AllFoodsScreen> {
   final _search = TextEditingController();
 
+  /// Held directly so dispose can clear the shared filter without touching
+  /// context, which is not safe once the element is being torn down.
+  MenuProvider? _menu;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _menu = context.read<MenuProvider>();
+  }
+
   @override
   void dispose() {
     _search.dispose();
+    // Leaving a search term on the shared provider would keep the home tab
+    // showing search results after the user navigates away.
+    _menu?.onSearch('');
     super.dispose();
   }
 
