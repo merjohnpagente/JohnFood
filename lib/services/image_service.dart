@@ -42,13 +42,15 @@ class ImageService {
 
   /// Compress to a small JPEG (max 1024px, quality 70) so receipts stay
   /// well under Firestore's 1MiB document limit.
-  List<int> compressReceipt(List<int> rawBytes) {
+  ///
+  /// Returns a [Uint8List] because that is what `Image.memory` requires.
+  Uint8List compressReceipt(List<int> rawBytes) {
     final decoded = img.decodeImage(Uint8List.fromList(rawBytes));
     if (decoded == null) throw Exception('Could not read image');
     final resized = decoded.width > 1024
         ? img.copyResize(decoded, width: 1024)
         : decoded;
-    return img.encodeJpg(resized, quality: 70);
+    return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
   }
 
   /// Upload a GCash/Maya proof for [orderId].

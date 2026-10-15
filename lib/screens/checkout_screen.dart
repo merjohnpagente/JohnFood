@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -36,7 +38,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double? _lat;
   double? _lng;
   bool _locLoading = false;
-  List<int>? _proofBytes;
+  Uint8List? _proofBytes;
   String _proofName = 'receipt.jpg';
   MerchantSettings? _merchant;
 

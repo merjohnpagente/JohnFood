@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -210,7 +212,7 @@ class _FoodFormState extends State<_FoodForm> {
   late final TextEditingController _time;
   late final TextEditingController _options;
   String? _category;
-  List<int>? _imageBytes;
+  Uint8List? _imageBytes;
   String _imageName = 'food.jpg';
   bool _saving = false;
 
