@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   apk:
@@ -123,12 +124,28 @@ jobs:
             {
               echo "## APK build output"
               echo '```'
-              tail -60 /tmp/apk-build.log
+              tail -80 /tmp/apk-build.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "::error title=APK build failed::see the step summary for the full log"
             exit "$rc"
           fi
+
+      - name: Report build failure to an issue
+        if: failure()
+        run: |
+          {
+            echo "### APK build log (\`${GITHUB_SHA:0:7}\`)"
+            echo
+            echo '```'
+            tail -120 /tmp/apk-build.log 2>/dev/null || echo "no build log captured"
+            echo '```'
+          } > /tmp/issue.md
+          TITLE="APK build failed ${GITHUB_SHA:0:7}"
+          gh issue create \
+            --title "$TITLE" \
+            --body-file /tmp/issue.md \
+            --label build-failure 2>/dev/null || \
+          gh issue create --title "$TITLE" --body-file /tmp/issue.md
 
       - name: Upload build log on failure
         if: failure()
