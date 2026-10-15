@@ -30,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(title: const Text('Dashboard')),
       body: ContentWidth(
         child: RefreshIndicator(
-          onRefresh: () => admin.loadStats(),
+          onRefresh: () => admin.loadStats(force: true),
           child: ListView(
             padding: EdgeInsets.all(context.pagePadding),
             children: [

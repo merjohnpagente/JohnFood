@@ -39,8 +39,15 @@ class OrdersProvider extends ChangeNotifier {
 
 /// Dashboard figures use Firestore aggregation queries, which cost one read
 /// no matter how many orders they scan. Reading the orders to sum them in
-/// Dart would cost one read per order, which is the single biggest quota
-/// drain in the app.
+/// Dashboard figures.
+///
+/// The installed cloud_firestore has no aggregation queries (no `sum`, no
+/// `count` on a Query), so the numbers are computed from one bounded read of
+/// the most recent orders and cached for a short while. That keeps a
+/// dashboard open from spending a read per pull-to-refresh, at the cost of
+/// ignoring orders older than the cap. If the project ever moves to a plan
+/// with aggregation queries or Cloud Functions, replace this with a
+/// server-side rollup.
 class AdminProvider extends ChangeNotifier {
   bool loading = false;
   int todayOrders = 0;
@@ -51,6 +58,14 @@ class AdminProvider extends ChangeNotifier {
   double _overall = 0;
   Map<String, Map<String, dynamic>> topSales = {};
 
+  /// Newest orders considered. Raising it improves accuracy and costs reads.
+  static const int _cap = 400;
+
+  /// Do not refetch within this window.
+  static const Duration _cacheTtl = Duration(minutes: 2);
+
+  DateTime? _fetchedAt;
+
   double get overallRevenue => _overall;
 
   /// Safe share of the overall total (0 when there is nothing to divide by).
@@ -59,125 +74,80 @@ class AdminProvider extends ChangeNotifier {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  Future<void> loadStats() async {
+  Future<void> loadStats({bool force = false}) async {
+    final fresh = _fetchedAt != null &&
+        DateTime.now().difference(_fetchedAt!) < _cacheTtl;
+    if (fresh && !force) return;
+
     loading = true;
     notifyListeners();
-    final db = _db;
     try {
       final now = DateTime.now();
       final dayStart = DateTime(now.year, now.month, now.day);
       final monthStart = DateTime(now.year, now.month);
       final yearStart = DateTime(now.year);
 
-      // Aggregations: 1 read each.
-      final todayCount = await _countFrom(dayStart);
-      final monthRev = await _sumFrom(monthStart);
-      final yearRev = await _sumFrom(yearStart);
-      final overallRev = await _sumFrom(null);
+      final snap = await _db
+          .collection('orders')
+          .orderBy('createdAt', descending: true)
+          .limit(_cap)
+          .get();
 
-      // Exclude cancelled revenue. Aggregation cannot filter on two fields,
-      // so the cancelled correction is applied with one bounded read.
-      final cancelled = await _cancelledSum();
+      var tOrders = 0;
+      var tRev = 0.0, mRev = 0.0, yRev = 0.0, allRev = 0.0;
+      var active = 0;
+      final sales = <String, Map<String, dynamic>>{};
 
-      todayOrders = todayCount;
-      monthRevenue = monthRev - cancelled.month;
-      yearRevenue = yearRev - cancelled.total;
-      _overall = overallRev - cancelled.total;
-      activeOrders = await _activeCount();
+      for (final d in snap.docs) {
+        final m = d.data();
+        final status = (m['status'] ?? '') as String;
+        if (status == 'pending' ||
+            status == 'assigned' ||
+            status == 'preparing' ||
+            status == 'on_the_way') {
+          active++;
+        }
+        if (status == 'cancelled') continue;
 
-      // Top sellers needs the item arrays, which aggregation cannot reach.
-      // Bounded and infrequent: only the most recent non-cancelled orders.
-      topSales = await _topSellers();
+        final total = ((m['total'] ?? 0) as num).toDouble();
+        final created =
+            (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        allRev += total;
+        if (!created.isBefore(yearStart)) yRev += total;
+        if (!created.isBefore(monthStart)) mRev += total;
+        if (!created.isBefore(dayStart)) {
+          tRev += total;
+          tOrders++;
+        }
+
+        for (final raw in ((m['items'] ?? []) as List)) {
+          final it = Map<String, dynamic>.from(raw as Map);
+          final fid = (it['foodId'] ?? '') as String;
+          if (fid.isEmpty) continue;
+          final qty = ((it['qty'] ?? 1) as num).toInt();
+          final line = ((it['price'] ?? 0) as num).toDouble() * qty;
+          final e = sales.putIfAbsent(fid, () {
+            final name = (it['name'] ?? fid) as String;
+            return <String, dynamic>{'name': name, 'qty': 0, 'revenue': 0.0};
+          });
+          e['qty'] = ((e['qty'] ?? 0) as int) + qty;
+          e['revenue'] = ((e['revenue'] ?? 0.0) as double) + line;
+        }
+      }
+
+      todayOrders = tOrders;
+      todayRevenue = tRev;
+      monthRevenue = mRev;
+      yearRevenue = yRev;
+      _overall = allRev;
+      activeOrders = active;
+      topSales = sales;
+      _fetchedAt = DateTime.now();
     } catch (_) {
       // Offline: keep the last values rather than blanking the dashboard.
     }
     loading = false;
     notifyListeners();
-  }
-
-  Future<int> _countFrom(DateTime from) async {
-    final snap = await _db
-        .collection('orders')
-        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
-        .count()
-        .get();
-    return snap.count ?? 0;
-  }
-
-  Future<double> _sumFrom(DateTime? from) async {
-    Query<Map<String, dynamic>> q = _db.collection('orders');
-    if (from != null) {
-      q = q.where('createdAt',
-          isGreaterThanOrEqualTo: Timestamp.fromDate(from));
-    }
-    // cloud_firestore exposes sum() directly on the query; there is no
-    // select() step, that was the old platform-interface shape.
-    final snap = await q.sum('total').get();
-    return (snap.data ?? 0).toDouble();
-  }
-
-  /// Cancelled orders, newest first, capped so the read stays bounded.
-  Future<({double total, double month})> _cancelledSum() async {
-    final snap = await _db
-        .collection('orders')
-        .where('status', isEqualTo: 'cancelled')
-        .orderBy('createdAt', descending: true)
-        .limit(200)
-        .get();
-    var total = 0.0;
-    var month = 0.0;
-    final now = DateTime.now();
-    final monthStart = DateTime(now.year, now.month);
-    for (final d in snap.docs) {
-      final m = d.data();
-      final v = ((m['total'] ?? 0) as num).toDouble();
-      total += v;
-      final created = (m['createdAt'] as Timestamp?)?.toDate();
-      if (created != null && !created.isBefore(monthStart)) month += v;
-    }
-    return (total: total, month: month);
-  }
-
-  Future<int> _activeCount() async {
-    var total = 0;
-    for (final status in ['pending', 'assigned', 'preparing', 'on_the_way']) {
-      final snap = await _db
-          .collection('orders')
-          .where('status', isEqualTo: status)
-          .count()
-          .get();
-      total += snap.count ?? 0;
-    }
-    return total;
-  }
-
-  /// Reads only the recent orders, since aggregation cannot reach the
-  /// nested items array that sales are computed from.
-  Future<Map<String, Map<String, dynamic>>> _topSellers({int cap = 300}) async {
-    final snap = await _db
-        .collection('orders')
-        .orderBy('createdAt', descending: true)
-        .limit(cap)
-        .get();
-    final out = <String, Map<String, dynamic>>{};
-    for (final d in snap.docs) {
-      final m = d.data();
-      if ((m['status'] ?? '') == 'cancelled') continue;
-      for (final raw in ((m['items'] ?? []) as List)) {
-        final it = Map<String, dynamic>.from(raw as Map);
-        final fid = (it['foodId'] ?? '') as String;
-        if (fid.isEmpty) continue;
-        final qty = ((it['qty'] ?? 1) as num).toInt();
-        final line = ((it['price'] ?? 0) as num).toDouble() * qty;
-        final e = out.putIfAbsent(fid, () {
-          final name = (it['name'] ?? fid) as String;
-          return <String, dynamic>{'name': name, 'qty': 0, 'revenue': 0.0};
-        });
-        e['qty'] = ((e['qty'] ?? 0) as int) + qty;
-        e['revenue'] = ((e['revenue'] ?? 0.0) as double) + line;
-      }
-    }
-    return out;
   }
 }
 

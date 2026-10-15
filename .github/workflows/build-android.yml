@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  issues: write
 
 jobs:
   apk:
@@ -129,21 +128,6 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             exit "$rc"
           fi
-
-      - name: Report build failure to an issue
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TITLE: "APK build failed ${{ github.sha }}"
-        run: |
-          {
-            echo "### APK build log"
-            echo
-            echo '```'
-            tail -120 /tmp/apk-build.log 2>/dev/null || echo "no build log captured"
-            echo '```'
-          } > /tmp/issue.md
-          gh issue create --title "$TITLE" --body-file /tmp/issue.md
 
       - name: Upload build log on failure
         if: failure()
