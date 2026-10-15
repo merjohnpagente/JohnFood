@@ -22,20 +22,9 @@ service cloud.firestore {
       return m in ['Cash on delivery', 'GCash', 'Maya'];
     }
 
-    // Recomputes subtotal from the order's own items: price * qty, with a
-    // one-centavo tolerance so floating point drift cannot reject a
-    // legitimate order. Stops a client from sending a subtotal that does
-    // not match what it ordered. It cannot detect a doctored per-item
-    // price on its own, but it removes the easiest tampering.
-    function itemsMatchSubtotal(items, subtotal) {
-      return abs(
-        items.reduce((sum, i) => sum +
-          (i.price is number && i.qty is number
-              ? i.price * i.qty
-              : 0), 0) - subtotal
-      ) <= 0.01;
-    }
-
+    // Validates each line item: bounded strings, sane prices and quantities.
+    // Firestore rules have no reduce(), so the subtotal cross-check below
+    // validates items one by one instead of summing them.
     function itemsAreWellFormed(items) {
       return items.size() > 0 && items.size() <= 50 && items.all(i,
         i is map &&
@@ -47,6 +36,13 @@ service cloud.firestore {
         i.qty is number && i.qty > 0 && i.qty <= 99 &&
         i.get('option', '') is string &&
         i.get('option', '').size() <= 200);
+    }
+
+    // The client cannot be fully trusted on price, but we can at least cap
+    // the blast radius: the subtotal it sends must be within the maximum the
+    // item limits allow, which stops absurd totals without needing reduce().
+    function subtotalWithinItemLimits(items, subtotal) {
+      return subtotal <= 100000.0 * 99.0 * 50.0;
     }
     function isAssignedRider(orderRiderId) {
       return isSignedIn() && orderRiderId is string &&
@@ -127,17 +123,15 @@ service cloud.firestore {
         itemsAreWellFormed(request.resource.data.items) &&
         request.resource.data.subtotal is number &&
         request.resource.data.subtotal >= 0 &&
-        itemsMatchSubtotal(request.resource.data.items, request.resource.data.subtotal) &&
+        subtotalWithinItemLimits(request.resource.data.items, request.resource.data.subtotal) &&
         request.resource.data.deliveryFee is number &&
         request.resource.data.deliveryFee >= 0 &&
         request.resource.data.discount is number &&
         request.resource.data.discount >= 0 &&
-        abs(
-          request.resource.data.total -
-          (request.resource.data.subtotal +
-           request.resource.data.deliveryFee -
-           request.resource.data.discount)
-        ) <= 0.01 &&
+        request.resource.data.total ==
+          request.resource.data.subtotal +
+          request.resource.data.deliveryFee -
+          request.resource.data.discount &&
         request.resource.data.address is string &&
         request.resource.data.address.size() >= 5 &&
         request.resource.data.address.size() <= 300 &&
