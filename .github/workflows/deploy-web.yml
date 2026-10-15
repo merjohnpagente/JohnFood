@@ -37,12 +37,21 @@ jobs:
       - run: flutter pub get
 
       - name: Build web
-        run: >
-          flutter build web --release
-          --base-href /${{ github.event.repository.name }}/
-          --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
-          --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+        run: |
+          set -o pipefail
+          flutter build web --release \
+            --base-href /${{ github.event.repository.name }}/ \
+            --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} \
+            --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }} \
+            2>&1 | tee /tmp/web-build.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" != "0" ]; then
+            grep -iE "error|failed|exception" /tmp/web-build.log | head -30 | while IFS= read -r l; do
+              echo "::error::$l"
+            done
+            exit "$rc"
+          fi
 
       - uses: actions/upload-pages-artifact@v3
         with:

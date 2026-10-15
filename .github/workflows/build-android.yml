@@ -113,7 +113,19 @@ jobs:
       - name: Build release APK
         run: |
           set -o pipefail
-          flutter build apk --release --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }} 2>&1 | tee /tmp/apk-build.log
+          flutter build apk --release \
+            --dart-define=CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} \
+            --dart-define=CLOUDINARY_UPLOAD_PRESET=${{ secrets.CLOUDINARY_UPLOAD_PRESET }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }} \
+            2>&1 | tee /tmp/apk-build.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" != "0" ]; then
+            echo "--- build errors ---"
+            grep -iE "error|failed|exception|could not|unable" /tmp/apk-build.log | head -30 | while IFS= read -r l; do
+              echo "::error::$l"
+            done
+            exit "$rc"
+          fi
 
       - name: Upload build log on failure
         if: failure()
