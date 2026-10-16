@@ -25,8 +25,13 @@ production where prices must be computed server-side.
    of the debug keystore (`keystores/johnfoods-debug.p12`, alias
    `androiddebugkey`) and of your release key, otherwise Google sign-in
    fails with ApiException 10. Authentication > Settings > Authorized
-   domains: add your GitHub Pages and Vercel domains or web Google
-   sign-in will fail.
+   domains: add every domain the app is served from, or all web sign-in
+   fails with `auth/unauthorized-domain`. The live site is GitHub Pages, so
+   `merjohnpagente.github.io` must be in that list. Only `localhost`,
+   `johnfood-b281a.firebaseapp.com` and `johnfood-b281a.web.app` are
+   authorized by default, and Firebase counts the full host including the
+   repo path, so a project deployed under a subpath still needs only the
+   host.
 5. iOS: add an Apple app with bundle id `com.merjdev.johnfoods` in the
    Firebase console, then set `IOS_API_KEY`, `IOS_APP_ID`,
    `IOS_MESSAGING_SENDER_ID`, `IOS_STORAGE_BUCKET` and
@@ -36,10 +41,13 @@ production where prices must be computed server-side.
 7. Commit to `main`. Actions tab:
    - Build Android APK: download `john-foods-apk` artifact, install on phone.
    - Build iOS: downloads `john-foods-ios` (unsigned `Runner.app`).
-   - Deploy Web (GitHub Pages, kept): open `https://<user>.github.io/<repo>/`.
-   - Deploy Web to Vercel (auto): builds with `--base-href /` and deploys
-     `build/web` to `https://johnfoodapp.vercel.app` (`vercel.json` handles
-     SPA fallback to `index.html`).
+   - Deploy Web (GitHub Pages, kept): open
+     `https://merjohnpagente.github.io/JohnFood/`. This is the only live web
+     build; the Vercel workflow is not enabled in `.github/workflows/`, so
+     `vercel.json` and the `johnfoodapp.vercel.app` host are unused and that
+     URL answers 404. `pending-workflows/deploy-vercel.yml` holds it if the
+     Vercel deploy is ever wanted, which would also require adding that host
+     to Authorized domains.
    - Deploy Firestore rules: runs on rules changes + manual.
 8. Failed run: open the red job, copy error lines, ask AI to fix.
 
@@ -48,6 +56,31 @@ workflows auto-run `flutter create . --project-name john_foods --org
 com.merjdev.johnfoods`.
 For signed release APK, add `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
 `KEY_ALIAS`, `KEY_PASSWORD` secrets.
+
+## Verify a deploy
+
+Sign-in and images fail in ways that look like a network fault but are not.
+Check these first, from the shell:
+
+```
+# Is the domain authorized for Auth? Sign-in fails with unauthorized-domain
+# if the live host is missing from the list.
+wget -qO- "https://identitytoolkit.googleapis.com/v1/projects?key=$WEB_API_KEY"
+
+# Is there a menu in the database at all? {} means zero documents, which is
+# not the same as permission-denied (403).
+wget -qO- "https://firestore.googleapis.com/v1/projects/johnfood-b281a/\
+databases/(default)/documents/foods?pageSize=1&key=$WEB_API_KEY"
+```
+
+An empty `foods` collection is fine for browsing: `MenuService.watchFoods()`
+falls back to the bundled sample menu. Seed the real one from Admin > Foods
+("Import sample menu", `lib/services/menu_service.dart`) once an admin
+account exists, otherwise every write is rejected by the rules.
+
+If product photos are placeholders, the images are bundled and present but
+the `image` field holds something other than an asset path or an `http` URL;
+`FoodImage` in `lib/widgets/ui_kit.dart` routes on exactly that prefix.
 
 ## End-to-end test (Spark free)
 
