@@ -9,6 +9,7 @@ import '../../services/notification_service.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/motion.dart';
+import '../../utils/error_mapper.dart';
 import '../../utils/formatters.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/ui_kit.dart';
@@ -87,7 +88,7 @@ class _RiderScreenState extends State<RiderScreen> {
           }
         }
       }
-    }, onError: (_) {/* offline: the list itself shows the error */});
+    }, onError: (_) {/* the assigned-orders list renders the error + retry */});
   }
 
   @override
@@ -209,8 +210,9 @@ class _RiderScreenState extends State<RiderScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Accept failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not accept: ${friendlyError(e)}')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -233,8 +235,9 @@ class _RiderScreenState extends State<RiderScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Update failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update: ${friendlyError(e)}')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -252,8 +255,9 @@ class _RiderScreenState extends State<RiderScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Decline failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not decline: ${friendlyError(e)}')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -271,8 +275,9 @@ class _RiderScreenState extends State<RiderScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Update failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update: ${friendlyError(e)}')),
+        );
       }
     }
   }
@@ -341,7 +346,10 @@ class _RiderScreenState extends State<RiderScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Could not load orders. Check connection.'),
+                    Text(
+                      'Could not load orders. ${friendlyError(snap.error!)}',
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 8),
                     FilledButton(
                       onPressed: () => setState(() {}),

@@ -32,7 +32,8 @@ String friendlyError(Object e) {
       case 'popup-blocked':
         return 'Popup blocked. Allow popups for this site and retry.';
       case 'unauthorized-domain':
-        return 'This site is not authorized for sign-in. Contact support.';
+        return 'This site is not authorized for sign-in. Add its domain under '
+            'Firebase console > Authentication > Settings > Authorized domains.';
       case 'missing-id-token':
         return 'Google sign-in is misconfigured on this build. Try email login or contact support.';
       default:

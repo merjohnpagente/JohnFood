@@ -12,6 +12,7 @@ import 'screens/auth_gate.dart';
 import 'screens/splash_screen.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
+import 'utils/error_mapper.dart';
 import 'utils/responsive.dart';
 import 'firebase_options.dart';
 
@@ -23,7 +24,7 @@ Future<void> main() async {
     // A misconfigured build (for example iOS keys that were never supplied)
     // must explain itself instead of showing a black screen.
     debugPrint('Firebase init failed: $e\n$st');
-    runApp(const _FirebaseErrorApp());
+    runApp(_FirebaseErrorApp(error: e));
     return;
   }
   await NotificationService().init();
@@ -32,7 +33,8 @@ Future<void> main() async {
 
 /// Shown when Firebase could not start, e.g. an iOS build without keys.
 class _FirebaseErrorApp extends StatelessWidget {
-  const _FirebaseErrorApp();
+  final Object error;
+  const _FirebaseErrorApp({required this.error});
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +69,7 @@ class _FirebaseErrorApp extends StatelessWidget {
                           'time. Re-run flutterfire configure, or build with '
                           'the IOS_API_KEY, IOS_APP_ID and '
                           'IOS_MESSAGING_SENDER_ID defines.'
-                      : 'Check your internet connection and try again.',
+                      : friendlyError(error),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 14, color: AppColors.muted),
