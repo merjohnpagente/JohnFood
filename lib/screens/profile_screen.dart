@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/menu_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/motion.dart';
+import '../utils/error_mapper.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
 import 'account_screen.dart';
@@ -70,12 +71,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             content: Text('Sample menu imported')),
                       );
                     }
-                  } catch (_) {
+                  } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                             content: Text(
-                                'Import failed. Only admins can do this.')),
+                                'Import failed: ${friendlyError(e)}')),
                       );
                     }
                   }
@@ -107,10 +108,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (ok == true) {
       try {
         await AuthService().signOut();
-      } catch (_) {
+      } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logout failed. Try again.')),
+            SnackBar(content: Text('Could not sign out: ${friendlyError(e)}')),
           );
         }
       }

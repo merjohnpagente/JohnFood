@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/promo.dart';
+import '../utils/error_mapper.dart';
 
 /// Promo codes live in Firestore so admins can create and expire them
 /// without shipping a new build. No hardcoded codes.
@@ -64,8 +65,8 @@ class PromoService {
       }
       final amount = p.discountFor(subtotal, deliveryFee: deliveryFee);
       return amount <= 0 ? 'That code does not apply to this order.' : null;
-    } catch (_) {
-      return 'Could not check that code. Try again.';
+    } catch (e) {
+      return 'Could not check that code: ${friendlyError(e)}';
     }
   }
 

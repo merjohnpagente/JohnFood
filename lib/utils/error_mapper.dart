@@ -67,3 +67,20 @@ String friendlyError(Object e) {
   }
   return 'Something went wrong. Please retry.';
 }
+
+/// True when the failure was actually the network, so callers can show a
+/// connectivity icon instead of implying the device is offline. Everything
+/// else, including a rejected rules request, is a configuration fault.
+bool isConnectionFailure(Object? e) {
+  if (e is FirebaseAuthException) {
+    return e.code == 'network-request-failed';
+  }
+  if (e is PlatformException) {
+    return e.code == 'network_error';
+  }
+  if (e is FirebaseException) {
+    return e.code == 'unavailable' || e.code == 'deadline-exceeded';
+  }
+  if (e == null) return false;
+  return e.toString().contains('SocketException');
+}

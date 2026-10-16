@@ -8,6 +8,7 @@ import '../services/order_service.dart';
 import '../models/order.dart';
 import '../theme/app_theme.dart';
 import '../theme/motion.dart';
+import '../utils/error_mapper.dart';
 import '../utils/formatters.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
@@ -148,7 +149,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
           }
           if (snap.hasError) {
             return ErrorState(
-              message: 'Could not load this order.',
+              message: 'Could not load this order. '
+                  '${friendlyError(snap.error!)}',
               onRetry: () => setState(() {}),
             );
           }

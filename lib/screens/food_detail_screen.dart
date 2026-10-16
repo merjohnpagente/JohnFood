@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/menu_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_mapper.dart';
 import '../utils/formatters.dart';
 import '../utils/responsive.dart';
 import '../widgets/ui_kit.dart';
@@ -36,11 +37,13 @@ class _FoodDetailScreenState extends State<FoodDetailScreen> {
     setState(() => _fav = !_fav);
     try {
       await context.read<AuthProvider>().toggleFavorite(widget.foodId);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _fav = !_fav);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save favorite.')),
+          SnackBar(
+              content: Text('Could not save favorite: ${friendlyError(e)}'),
+            ),
         );
       }
     }

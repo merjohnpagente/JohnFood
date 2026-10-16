@@ -6,6 +6,7 @@ import '../../services/image_service.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/motion.dart';
+import '../../utils/error_mapper.dart';
 import '../../utils/formatters.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/ui_kit.dart';
@@ -566,10 +567,10 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
       await OrderService()
           .declineAssignment(orderId: orderId, customerId: customerId);
       _riderPick.remove(orderId);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not unassign. Try again.')),
+        SnackBar(content: Text('Could not unassign: ${friendlyError(e)}')),
       );
     }
   }

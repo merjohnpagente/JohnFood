@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
+import '../utils/error_mapper.dart';
 import 'admin/admin_shell.dart';
 import 'auth/login_screen.dart';
 import 'cart_screen.dart';
@@ -19,7 +20,8 @@ class AuthGate extends StatelessWidget {
     if (auth.loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (auth.error != null && !auth.loggedIn) {
+    final error = auth.error;
+    if (error != null && !auth.loggedIn) {
       return Scaffold(
         body: Center(
           child: Padding(
@@ -27,9 +29,14 @@ class AuthGate extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.wifi_off_rounded, size: 48),
+                Icon(
+                  isConnectionFailure(error)
+                      ? Icons.wifi_off_rounded
+                      : Icons.lock_person_rounded,
+                  size: 48,
+                ),
                 const SizedBox(height: 12),
-                Text(auth.error!, textAlign: TextAlign.center),
+                Text(error, textAlign: TextAlign.center),
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: () => auth.retry(),

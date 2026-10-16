@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
+import '../utils/error_mapper.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _service = AuthService();
@@ -57,9 +58,10 @@ class AuthProvider extends ChangeNotifier {
         _user = AppUser.fromDoc(doc);
       }
       _error = null;
-    } catch (_) {
-      // Offline at startup: don't trap the user on a spinner.
-      _error = 'No connection. Check internet and retry.';
+    } catch (e) {
+      // Offline at startup: don't trap the user on a spinner. Keep the real
+      // reason, a rules rejection is not a network fault.
+      _error = friendlyError(e);
     } finally {
       _loading = false;
       notifyListeners();

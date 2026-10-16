@@ -65,11 +65,11 @@ class _UsersScreenState extends State<UsersScreen> {
         _loadingMore = false;
         _firstLoad = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _loadingMore = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not load more users')),
+          SnackBar(content: Text('Could not load more: ${friendlyError(e)}')),
         );
       }
     }
@@ -213,12 +213,13 @@ class _UsersScreenState extends State<UsersScreen> {
                                                 content: Text(
                                                     '$name is now a $v')));
                                         _reload();
-                                      } catch (_) {
+                                      } catch (e) {
                                         if (!context.mounted) return;
                                         ScaffoldMessenger.of(context)
-                                            .showSnackBar(const SnackBar(
+                                            .showSnackBar(SnackBar(
                                                 content: Text(
-                                                    'Could not change role')));
+                                                    'Could not change role: '
+                                                    '${friendlyError(e)}')));
                                       }
                                     },
                                     itemBuilder: (_) => [

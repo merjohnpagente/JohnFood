@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/motion.dart';
+import '../utils/error_mapper.dart';
 import '../utils/responsive.dart';
 import '../utils/validators.dart';
 import '../widgets/ui_kit.dart';
@@ -26,10 +27,10 @@ class _AddressesScreenState extends State<AddressesScreen> {
     try {
       await AuthService().updateAddresses(uid, addresses);
       if (mounted) await context.read<AuthProvider>().refresh();
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save. Try again.')),
+          SnackBar(content: Text('Could not save: ${friendlyError(e)}')),
         );
       }
     } finally {
